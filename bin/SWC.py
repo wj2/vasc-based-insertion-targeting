@@ -40,9 +40,24 @@ def _angle_between(a, b):
 
 class SWC:
     
-    def __init__(self, path, cylinder=True):
-        self._segments = []
-        self._num_segments = 0
+    def __init__(self, path=None, segments=None, cylinder=True):
+        """ must have one of segments or path or both """
+        if path == None and segments != None:
+            self._define_by_segments(segments)
+        elif path != None:
+            self._define_by_path(path, cylinder, segments)
+        
+    def _define_by_segments(segments):
+        self._segments = segments
+        self._num_segments = len(segments) 
+        
+    def _define_by_path(self, path, cylinder, segs):
+        if segs == None:
+            self._segments = []
+            self._num_segments = 0
+        else:
+            self._segments = segs
+            self._num_segments = len(segs)
         dict_all = {}
         with open(path, 'rb') as swc_text:
             for entry in swc_text:
@@ -71,6 +86,12 @@ class SWC:
 
     def __iter__(self):
         return iter(self._segments)
+
+    def filter(self, down, rad, len_):
+        new_segs = filter(lambda x: x.downwardness() < down 
+                          and x.avg_radius() > rad and x.length() > len_,
+                          self)
+        return SWC(segments=new_segs)
         
 class Segment: 
     
@@ -146,11 +167,15 @@ class Segment:
         length_xyzs = self._piece_lens(diff_xyzs)
         return np.average(diff_xyzs, axis=0, weights=length_xyzs)
 
+    def cumu_direction(self):
+        diff_xyzs = self._xyz_diffs()
+        length_xyzs = self._piece_lens(diff_xyzs)
+        return
+
     def length(self):
         """ length of segment, calculated going point to point """
         diff_xyzs = self._xyz_diffs()
-        return reduce(lambda x, y: np.sum(x) + np.sqrt(np.sum(y**2)), 
-                      diff_xyzs)
+        return self._piece_lens(diff_xyzs).sum()
 
     def crow_length(self):
         """ length of segment as crow flies, from first to last piece """
