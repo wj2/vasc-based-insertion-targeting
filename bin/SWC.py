@@ -134,12 +134,16 @@ class Segment:
         plt.ylabel('radius')
         plt.show()
 
-    def downwardness(self):
+    def downwardness(self, crow=True):
         """ 
-        returns difference in radians between mean direction of segment and 
+        returns difference in radians between direction of segment and 
         (0, 0, 1) -- expect values between [0, pi/2]; pi/2 = 1.570796
+          - direction can be either as crow flies (default) or weighted average
         """
-        avg_diff = self.avg_direction()
+        if crow:
+            avg_diff = self.crow_direction()
+        else: 
+            avg_diff = self.avg_direction()
         if avg_diff[-1] < 0:
             avg_diff = avg_diff * -1
         return _angle_between(avg_diff, np.array([0, 0, 1]))
