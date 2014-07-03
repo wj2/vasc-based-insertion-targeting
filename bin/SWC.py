@@ -40,14 +40,16 @@ def _angle_between(a, b):
 
 class SWC:
     
-    def __init__(self, path=None, segments=None, cylinder=True):
+    def __init__(self, path=None, segments=None, microns_perpixel=1, 
+                 cylinder=True):
         """ must have one of segments or path or both """
+        self.micsperpix = microns_perpixel
         if path == None and segments != None:
             self._define_by_segments(segments)
         elif path != None:
             self._define_by_path(path, cylinder, segments)
         
-    def _define_by_segments(segments):
+    def _define_by_segments(self, segments):
         self._segments = segments
         self._num_segments = len(segments) 
         
@@ -66,7 +68,8 @@ class SWC:
                 else:
                     swcent = SWCEntry(entry, cylinder)
                     if swcent.par == -1:
-                        self._segments.append(Segment(np.array([swcent])))
+                        self._segments.append(Segment(self.micsperpix,
+                                                      np.array([swcent])))
                         self._num_segments += 1
                     else:
                         dict_all[swcent.par] = swcent
@@ -87,15 +90,14 @@ class SWC:
     def __iter__(self):
         return iter(self._segments)
 
-    def filter(self, down, rad, len_):
-        new_segs = filter(lambda x: x.downwardness() < down 
-                          and x.avg_radius() > rad and x.length() > len_,
-                          self)
-        return SWC(segments=new_segs)
+    def filter(self, function):
+        new_segs = filter(function, self)
+        return SWC(segments=new_segs, microns_perpixel=self.micsperpix)
         
 class Segment: 
     
-    def __init__(self, pieces=None):
+    def __init__(self, micsperpix, pieces=None):
+        self.mpp = micsperpix
         if pieces == None:
             self._pieces = np.array([])
             self._num_pieces = 0
@@ -126,10 +128,10 @@ class Segment:
 
     def plot_rads_by(self, attr=None):
         if attr == None:
-            plt.plot(self.rads)
+            plt.plot(self.micron_rads)
             plt.xlabel('segment number')
         else:
-            plt.plot(getattr(self, attr), self.rads)
+            plt.plot(getattr(self, attr), self.micron_rads)
             plt.xlabel(attr)
         plt.ylabel('radius')
         plt.show()
@@ -158,11 +160,11 @@ class Segment:
     def avg_radius(self, weighted=False):
         if weighted:
             dxyzs = self._xyz_diffs()
-            lxyzs = self._piece_lens(dxyzs)[1:]
-            avgrad = np.average(self.rads, axis=0, weights=lxyzs)
+            lxyzs = self._piece_lens(dxyzs)
+            avgrad = np.average(self.rads[1:], axis=0, weights=lxyzs)
         else:
             avgrad = np.mean(self.rads)
-        return avgrad
+        return avgrad * self.mpp
             
 
     def avg_direction(self):
@@ -179,12 +181,12 @@ class Segment:
     def length(self):
         """ length of segment, calculated going point to point """
         diff_xyzs = self._xyz_diffs()
-        return self._piece_lens(diff_xyzs).sum()
+        return self._piece_lens(diff_xyzs).sum() * self.mpp
 
     def crow_length(self):
         """ length of segment as crow flies, from first to last piece """
         return np.sqrt(np.sum((np.array(self[0].xyz) 
-                               - np.array(self[-1].xyz))**2))
+                               - np.array(self[-1].xyz))**2)) * self.mpp
 
     def crow_direction(self):
         """ directionality of segment, taken from first to last piece only """
@@ -200,6 +202,10 @@ class Segment:
     @property
     def rads(self):
         return self._get_attr_list('rad')
+
+    @property
+    def micron_rads(self):
+        return self.rads * self.mpp
 
     @property
     def xyzs(self):

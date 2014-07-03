@@ -7,9 +7,13 @@ import SWC
 
 class MPLviewer:
 
-    def __init__(self, masked_img, swc, condition):
+    def __init__(self, masked_img, swc, condition=None):
+        """ 
+        condition is either None or a function that returns true if
+        a given segment should be included and false otherwise
+        """
         masked_img = tiff.imread(masked_img)
-        self.fig = plt.figure(1)
+        self.fig = plt.figure()
         self.img = masked_img
         self.gs = gspec.GridSpec(10, 10)
         self.imgdisplay = self.fig.add_subplot(self.gs[:9, :])
@@ -30,12 +34,14 @@ class MPLviewer:
         else:
             plt.close(self.fig)
             return
-        self.segs = self._process_swc(swc)
+        self.segs = self._process_swc(swc, condition)
         self.fig.canvas.mpl_connect('key_press_event', self._key_press)
         self._draw_vessel_cross()
         plt.draw()
         
-    def _process_swc(self, swc): 
+    def _process_swc(self, swc, condition): 
+        if condition != None:
+            swc = swc.filter(condition)
         segs = np.zeros((self.max_index + 1), dtype=np.dtype('object'))
         for segment in swc:
             for piece in segment:
