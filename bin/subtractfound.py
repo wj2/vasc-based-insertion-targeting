@@ -62,6 +62,14 @@ def find_bounds(vascswc, cylinder=True):
      
     return bounds
 
+def resize_mask(maskpath,imgpath, swcpath, cylinder):
+    bounds = find_bounds(swcpath, cylinder)
+    mask = tiff.imread(maskpath)
+    img = tiff.imread(imgpath)
+    cropped_mask = crop_mask(mask, bounds, img.shape)
+    tiff.imsave(splitext(maskpath)[0] + '-cropped.tif', cropped_mask)
+    return
+
 def mask_findings(imgpath, maskpath, swcpath, cylinder):
     
     bounds = find_bounds(swcpath, cylinder) 

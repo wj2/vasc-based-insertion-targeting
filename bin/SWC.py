@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from os.path import splitext
 from SWCEntry import SWCEntry
+from compare import angle_between
 
 def add_to_radius(path, add, rad_ind=5):
     with open(path, 'rb') as swcadd:
@@ -24,21 +25,22 @@ def add_to_radius(path, add, rad_ind=5):
 
 def _delve_to_children(all_, parentest, segment):
     child = all_.get(parentest.ident, False)
+    while child != False:
+        child.seg = parentest.seg
+        segment.add(child)
+        child = all_.get(child.ident, False)
+    return segment
+
+def _delve_to_children_rec(all_, parentest, segment):
+    child = all_.get(parentest.ident, False)
     if child == False:
         return segment
     else:
+        child.seg = parentest.seg
         segment.add(child)
         return _delve_to_children(all_, child, segment)
 
-def _unit_vector(a):
-    return a / np.linalg.norm(a)
-
-def _angle_between(a, b):
-    a = _unit_vector(a)
-    b = _unit_vector(b)
-    return  np.arccos(np.clip(np.dot(a, b), -1, 1))
-
-class SWC:
+class SWC(object):
     
     def __init__(self, path=None, segments=None, microns_perpixel=1, 
                  cylinder=True):
@@ -68,8 +70,8 @@ class SWC:
                 else:
                     swcent = SWCEntry(entry, cylinder)
                     if swcent.par == -1:
-                        self._segments.append(Segment(self.micsperpix,
-                                                      np.array([swcent])))
+                        s = Segment(self.micsperpix, pieces=np.array([swcent]))
+                        self._segments.append(s)
                         self._num_segments += 1
                     else:
                         dict_all[swcent.par] = swcent
@@ -77,6 +79,8 @@ class SWC:
         # now we have all parents in one dict and all other segments in another
         # indexed by parent
         for i, value in enumerate(self._segments):
+            value.ident = i
+            value[0].seg = i
             most_parentest = value[0]
             self._segments[i] = _delve_to_children(dict_all, most_parentest, 
                                                   value)
@@ -94,10 +98,11 @@ class SWC:
         new_segs = filter(function, self)
         return SWC(segments=new_segs, microns_perpixel=self.micsperpix)
         
-class Segment: 
+class Segment(object): 
     
-    def __init__(self, micsperpix, pieces=None):
+    def __init__(self, micsperpix, ident=-1, pieces=None):
         self.mpp = micsperpix
+        self.ident = ident
         if pieces == None:
             self._pieces = np.array([])
             self._num_pieces = 0
@@ -113,6 +118,17 @@ class Segment:
     
     def __len__(self):
         return self._num_pieces
+
+    def inspect(self, print_=True):
+        if print_:
+            print 'seg id: ' + str(self.ident)
+            print 'down c: ' + str(self.downwardness())
+            print 'down w: ' + str(self.downwardness(False))
+            print 'rad   : ' + str(self.avg_radius())
+            print 'len   : ' + str(self.length())
+        else:
+            return [self.ident, self.downwardness(), self.downwardness(False),
+                    self.avg_radius(), self.length()]
 
     def add(self, piece):
         self._pieces = np.append(self._pieces, piece)
@@ -148,7 +164,7 @@ class Segment:
             avg_diff = self.avg_direction()
         if avg_diff[-1] < 0:
             avg_diff = avg_diff * -1
-        return _angle_between(avg_diff, np.array([0, 0, 1]))
+        return angle_between(avg_diff, np.array([0, 0, 1]))
 
     def _piece_lens(self, diffs):        
         return np.sqrt(np.sum(diffs**2, axis=1))
@@ -166,7 +182,6 @@ class Segment:
             avgrad = np.mean(self.rads)
         return avgrad * self.mpp
             
-
     def avg_direction(self):
         """ length weighted average direction of segment """
         diff_xyzs = self._xyz_diffs()

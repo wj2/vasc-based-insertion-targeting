@@ -1,5 +1,5 @@
 
-class SWCEntry:
+class SWCEntry(object):
     
     def __init__(self, spec_string, cylinder):
         attributes = spec_string.split(' ')
@@ -12,6 +12,10 @@ class SWCEntry:
         self.z = float(z)
         self.rad = float(rad)
         self.par = int(par)
+        if len(attributes) > 7:
+            self.seg = attributes[7]
+        else:
+            self.seg = -1
 
     def get_dimmin(self, dim):
         if self.cylinder:
@@ -30,4 +34,4 @@ class SWCEntry:
     @property
     def xyz(self):
         return (self.x, self.y, self.z)
-    
+

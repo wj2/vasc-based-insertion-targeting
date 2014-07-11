@@ -16,7 +16,7 @@ class MPLviewer:
         self.fig = plt.figure()
         self.img = masked_img
         self.gs = gspec.GridSpec(10, 10)
-        self.imgdisplay = self.fig.add_subplot(self.gs[:9, :])
+        self.imgdisplay = self.fig.add_subplot(self.gs[:, :])
         if len(masked_img.shape) == 3:
             self.index = 0
             self.max_index = masked_img.shape[0] - 1
@@ -37,6 +37,7 @@ class MPLviewer:
         self.segs = self._process_swc(swc, condition)
         self.fig.canvas.mpl_connect('key_press_event', self._key_press)
         self._draw_vessel_cross()
+        self.imgdisplay.set_title(str(self.index) + '/' + str(self.max_index))
         plt.draw()
         
     def _process_swc(self, swc, condition): 
@@ -80,19 +81,25 @@ class MPLviewer:
 
     def _draw_vessel_cross(self):
         # potentially add color derived from ident
+        mark = r'$\bigoplus$'
         to_draw = self.segs[self.index]
         [x.remove() for x in self.imgdisplay.lines]
         if np.all(to_draw != 0):
             for item in to_draw:
-                self.imgdisplay.plot([item.x],[item.y], 
-                                     marker=r'$\bigoplus$',
+                # mark = '$'+str(item.seg)+'$'
+                # self.imgdisplay.plot([item.x],[item.y], 
+                #                      marker=mark,
+                #                      markersize=35)
+                self.imgdisplay.plot([item.x],[item.y], "b", 
+                                     marker=mark,
                                      markersize=item.rad*2)
-        self.imgdisplay.set_ylim(0, self.y_max)
+        self.imgdisplay.set_ylim(self.y_max, 0)
         self.imgdisplay.set_xlim(0, self.x_max)
         
     def _update(self):
         self.imgshown.set_data(self.img[self.index])
         self._draw_vessel_cross()
+        self.imgdisplay.set_title(str(self.index) + '/' + str(self.max_index))
         plt.draw()
 
     
