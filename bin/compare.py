@@ -39,8 +39,9 @@ def filled_radius_line_profile(swc, img):
             orthog_v = np.array([-meanpiece_v[1],
                                  meanpiece_v[0],
                                  0])
+            print meanpiece_v, orthog_v
             # create line profile
-            profile_dang = angle_between(orthog_v, unit_v, True)
+            profile_dang = -angle_between(orthog_v, unit_v, True)
             profile_len = np.around((piece.rad * 2.) + 10)
             profile = make_line(profile_len, profile_dang)
             
@@ -50,11 +51,14 @@ def filled_radius_line_profile(swc, img):
             x_e = crds[0] + (profile_len / 2)
             y_b = crds[1] - (profile_len / 2)
             y_e = crds[1] + (profile_len / 2)
+            print x_b, x_e
+            print y_b, y_e
             if not (x_b < 0 or x_e >= img.shape[2] or 
                     y_b < 0 or y_e >= img.shape[1]):
                 section = img[crds[2], y_b:y_e, x_b:x_e]
                 print crds
                 print piece.rad
+                print profile_dang
                 print section.shape, profile.shape
                 prof = section * profile
                 prof = prof.T[prof.T.nonzero()]
