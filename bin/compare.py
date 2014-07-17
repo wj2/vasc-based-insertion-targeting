@@ -79,7 +79,8 @@ def piece_profile(v, img, crds, rad, add=10, unit=None):
         
 
 def filled_radius_line_profile(swc, img, random_display=False, dfp_thresh=6, 
-                               rshow=5, main_display=True):
+                               rshow=5, main_display=True, lessthan=True,
+                               absolute=True):
     img = tiff.imread(img)
     calc_rads = []
     fill_rads = []
@@ -99,8 +100,11 @@ def filled_radius_line_profile(swc, img, random_display=False, dfp_thresh=6,
             except IndexError:
                 skipped += 1
             else:
+                diff = piece.rad - prof_rad
+                if absolute: diff = np.abs(diff)
                 if (random_display and np.random.uniform() < .05 
-                    and np.abs(piece.rad - prof_rad) < dfp_thresh 
+                    and ((lessthan and diff < dfp_thresh) or 
+                         (not lessthan and diff > dfp_thresh))
                     and seen < rshow):
                     seen += 1
                     pltitle = (str(segment.ident)+':'+str(i+1)+':'
