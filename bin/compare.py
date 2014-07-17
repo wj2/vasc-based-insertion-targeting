@@ -3,6 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as color
+import matplotlib.gridspec as gs
 from scipy.misc import imrotate
 from scipy import ndimage
 from scipy.stats.stats import pearsonr
@@ -53,28 +54,32 @@ def make_line(l, angle=None):
         line = clean_rotate(line, angle)
     return line
 
-def piece_profile(v, crds, rad, add=10, unit=None):
+def piece_profile(v, img, crds, rad, add=10, unit=None):
     if unit == None:
         unit = np.array([1,0,0])
     o = np.array([-v[1], v[0], 0])
     ang = angle_between(o, unit, True, True)
     len_ = np.around((rad * 2.) + add)
-    x_b = np.around(crds[0] - (len_ / 2))
+    z = np.around(crds[2])
+    x_b = crds[0] - (len_ / 2)
     x_e = crds[0] + (len_ / 2)
+    x = crds[0] - x_b
     y_b = crds[1] - (len_ / 2)
     y_e = crds[1] + (len_ / 2)
+    y = crds[1] - y_b
     if not (x_b < 0 or x_e >= img.shape[2] or 
             y_b < 0 or y_e >= img.shape[1]):
-        section = img[crds[2], y_b:y_e, x_b:x_e]
+        section = img[z, y_b:y_e, x_b:x_e]
         
         prof, section_r = line_profile_radius(section, ang, len_)
-        prof_rad = profile_rad(prof)
+        prof_rad, l, r = profile_rad(prof)
     else:
         raise IndexError('section is out of the image')
-    return prof_rad, prof, section_r
+    return prof_rad, (l, r), (x, y), prof, section_r
         
 
-def filled_radius_line_profile(swc, img):
+def filled_radius_line_profile(swc, img, random_display=False, dfp_thresh=6, 
+                               rshow=5, main_display=True):
     img = tiff.imread(img)
     calc_rads = []
     fill_rads = []
@@ -87,44 +92,44 @@ def filled_radius_line_profile(swc, img):
             all_ += 1
             meanpiece_v = np.array(segment[i+2].xyz) - np.array(segment[i].xyz)
             try:
-                prof_rad, prof, section_r = piece_profile(meanpiece_v, 
-                                                          piece.xyz, piece.rad)
+                prof_rad, lr, xy, prof, section_r = piece_profile(meanpiece_v, 
+                                                                  img, 
+                                                                  piece.xyz,
+                                                                  piece.rad)
             except IndexError:
                 skipped += 1
             else:
-                if (np.random.uniform() < .00000000005 
-                    and piece.rad - prof_rad > 6 
-                    and seen < 10
-                    and False):
+                if (random_display and np.random.uniform() < .05 
+                    and np.abs(piece.rad - prof_rad) < dfp_thresh 
+                    and seen < rshow):
                     seen += 1
-                    pltitle = (str(segment.id)+':'+str(i+1)+':'+str(piece.id)
-                               +' | image rotated '+str(seen))
+                    pltitle = (str(segment.ident)+':'+str(i+1)+':'
+                               +str(piece.ident)+' | Figure '+str(seen))
                     plot_line_prof(section_r, make_line(section_r.shape[1]),
-                                   prof, pltitle, prof_rad, piece.rad)
+                                   prof, lr, xy, pltitle, prof_rad, piece.rad)
 
                 plotted += 1 
                 fill_rads.append(piece.rad)
                 calc_rads.append(prof_rad)
     
-    rad_corr = np.corrcoef(fill_rads, calc_rads)[0, 1]
-    # print 'numpy correlation = ' + str(rad_corr)
-    pcorr = pearsonr(fill_rads, calc_rads)
-    print 'pearson r = '+str(pcorr[0])
-    # print 'p-val     = '+str(pcorr[1])
-    # print str(skipped) + ' skipped'
-    # print str(plotted) + ' plotted'
-    # print str(all_ - plotted - skipped) + ' excluded'
-    print '-------- line profiles --------'
-    print 'range : '+str(min(calc_rads))+','+str(max(calc_rads))
-    print 'median: '+str(np.median(calc_rads))
-    print 'mean  : '+str(np.mean(calc_rads))
-    print 'std   : '+str(np.std(calc_rads))
-    print '-------- vaa3d radius fill --------'
-    print 'range : '+str(min(fill_rads))+','+str(max(fill_rads))
-    print 'median: '+str(np.median(fill_rads))
-    print 'mean  : '+str(np.mean(fill_rads))
-    print 'std   : '+str(np.std(fill_rads))
-    plot_radii(fill_rads, calc_rads)
+    if main_display:
+        pcorr = pearsonr(fill_rads, calc_rads)
+        print 'pearson r = '+str(pcorr[0])
+        # print 'p-val     = '+str(pcorr[1])
+        # print str(skipped) + ' skipped'
+        # print str(plotted) + ' plotted'
+        # print str(all_ - plotted - skipped) + ' excluded'
+        print '-------- line profiles --------'
+        print 'range : '+str(min(calc_rads))+','+str(max(calc_rads))
+        print 'median: '+str(np.median(calc_rads))
+        print 'mean  : '+str(np.mean(calc_rads))
+        print 'std   : '+str(np.std(calc_rads))
+        print '-------- vaa3d radius fill --------'
+        print 'range : '+str(min(fill_rads))+','+str(max(fill_rads))
+        print 'median: '+str(np.median(fill_rads))
+        print 'mean  : '+str(np.mean(fill_rads))
+        print 'std   : '+str(np.std(fill_rads))
+        plot_radii(fill_rads, calc_rads)
 
 def profile_rad(p, n=3, avg=True):
     p = np.array(p)
@@ -135,11 +140,13 @@ def profile_rad(p, n=3, avg=True):
         dpa_max = dpcm[:2*dpcm.shape[0]/3].argmax()
         dpa_min = dpcm[dpa_max:].argmin() + dpa_max
         rad = (dpa_min - dpa_max + 1) / 2.
+        dpa_min = dpa_min + 1
+        dpa_max = dpa_max + 1
     else:
         dpa_max = dp[:2*dp.shape[0]/3].argmax()
         dpa_min = dp[dpa_max:].argmin() + dpa_max
         rad = (dpa_min - dpa_max + 1) / 2.
-    return rad
+    return rad, dpa_max, dpa_min
 
 def line_profile_radius(img, ang, l):
     rot_img = ndimage.rotate(img, -ang, mode='nearest', reshape=False)
@@ -151,27 +158,51 @@ def line_profile_radius_profrotate(img, ang, l):
     prof_2d = img * line
     return prof_2d.T[prof_2d.T.nonzero()].astype(np.int16), img
 
-def plot_line_prof(sect, overlay, profile, title=None, prof_rad=None,
-                   piece_rad=None, ang=None):
-    fig = plt.figure()
+def plot_line_prof(sect, overlay, profile, plr=None, xy=None, title=None, 
+                   prof_rad=None, piece_rad=None, ang=None):
+    fig = plt.figure(figsize=(6,8))
+    spec = gs.GridSpec(4, 3)
+    im_plot = plt.subplot(spec[:-1,:])
+    prof_plot = plt.subplot(spec[-1,:], sharex=im_plot)
     if title != None:
         fig.suptitle(title)
-    im_plot = fig.add_subplot(2, 1, 1)
     if ang != None:
         im_plot.set_title('rotated '+str(ang)+' degrees')
     im_plot.imshow(sect, interpolation='none')
     gcm = make_green_alpha_scale_cm()
     im_plot.imshow(overlay, gcm, alpha=.50, interpolation='none')
-    prof_plot = fig.add_subplot(2, 1, 2)
     prof_title = ''
     if prof_rad != None:
         prof_title += 'profile-judged radius: '+str(prof_rad)
     if prof_rad != None and piece_rad != None:
         prof_title += ' | '
-    if piece_rad != None:
+    if piece_rad != None and xy != None:
         prof_title += 'vaa3d-judged radius: '+str(piece_rad)
+        xy = (xy[0] - .5, xy[1] - .5)
+        imcirc = plt.Circle(xy, piece_rad, color='g', fill=False,
+                            label='one')
+        im_plot.add_artist(imcirc)
+    if plr != None:
+        imrect = plt.Rectangle((plr[0], (sect.shape[0]/2) - .5), 
+                               plr[1] - plr[0], 1, fill=False, color='g')
+        im_plot.add_artist(imrect)
+        ps = profile[plr[0]:plr[1]+1]
+        prrect = plt.Rectangle((plr[0], min(ps)), plr[1] - plr[0], 
+                               max(ps) - min(ps), fill=True, color='g', 
+                               alpha=.75)
+        prof_plot.add_artist(prrect)
+    if plr != None and piece_rad != None:
+        imcirc_l = plt.Line2D([0], [0], color='white', marker='o',
+                              markeredgecolor='g', markerfacecolor='white', 
+                              markersize=10)
+        im_plot.legend((imcirc_l, imrect), ('vaa3d','line profile'),
+                       numpoints=1)
+        
     prof_plot.plot(profile)
-    prof_plot.set_title(prof_title)
+    im_plot.set_title(prof_title)
+    im_plot.axis([0, sect.shape[1]-1, 0, sect.shape[0]-1])
+    plt.setp(im_plot.get_xticklabels(), visible=False)
+    plt.setp(im_plot.get_yticklabels(), visible=False)
     plt.show()
 
 def plot_radii(fill_rads, calc_rads):
@@ -188,7 +219,6 @@ def plot_radii(fill_rads, calc_rads):
     coefs = np.polyfit(fill_rads, calc_rads, 1)
     fit_y = np.polyval(coefs, fill_rads)
     splot.plot(fill_rads, fit_y, 'b--', label='line of best fit')
-    # hand, label = splot.get_legend_handles_labels()
     splot.legend(loc=2)
 
     plt.show()
