@@ -112,9 +112,9 @@ def filled_radius_line_profile(swc, img, random_display=False, dfp_thresh=6,
                     plot_line_prof(section_r, make_line(section_r.shape[1]),
                                    prof, lr, xy, pltitle, prof_rad, piece.rad)
 
-                plotted += 1 
-                fill_rads.append(piece.rad)
-                calc_rads.append(prof_rad)
+                plotted += 1
+                fill_rads.append(segment.mpp * piece.rad)
+                calc_rads.append(segment.mpp * prof_rad)
     
     if main_display:
         pcorr = pearsonr(fill_rads, calc_rads)

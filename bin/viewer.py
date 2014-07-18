@@ -7,7 +7,7 @@ import SWC
 
 class MPLviewer:
 
-    def __init__(self, masked_img, swc, condition=None):
+    def __init__(self, masked_img, swc, condition=None, display_ids=True):
         """ 
         condition is either None or a function that returns true if
         a given segment should be included and false otherwise
@@ -17,6 +17,7 @@ class MPLviewer:
         self.img = masked_img
         self.gs = gspec.GridSpec(10, 10)
         self.imgdisplay = self.fig.add_subplot(self.gs[:, :])
+        self.display_ids = display_ids
         if len(masked_img.shape) == 3:
             self.index = 0
             self.max_index = masked_img.shape[0] - 1
@@ -86,13 +87,14 @@ class MPLviewer:
         [x.remove() for x in self.imgdisplay.lines]
         if np.all(to_draw != 0):
             for item in to_draw:
-                # mark = '$'+str(item.seg)+'$'
-                # self.imgdisplay.plot([item.x],[item.y], 
-                #                      marker=mark,
-                #                      markersize=35)
-                self.imgdisplay.plot([item.x],[item.y], "b", 
+                if self.display_ids:
+                    mark = '$'+str(item.seg)+'$'
+                    msize = 35
+                else:
+                    msize = item.rad * 2
+                self.imgdisplay.plot([item.x],[item.y], 'g',
                                      marker=mark,
-                                     markersize=item.rad*2)
+                                     markersize=msize)
         self.imgdisplay.set_ylim(self.y_max, 0)
         self.imgdisplay.set_xlim(0, self.x_max)
         
