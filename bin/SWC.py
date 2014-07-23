@@ -5,6 +5,9 @@ from os.path import splitext
 from SWCEntry import SWCEntry
 from compare import angle_between
 
+def create_super_seg(indices, swc, ident=None):
+    return SuperSegment([swc[i] for i in indices], ident=ident)
+
 def add_to_radius(path, add, rad_ind=5):
     with open(path, 'rb') as swcadd:
         pre, suff = splitext(path)
@@ -120,15 +123,18 @@ class Segment(object):
         return self._num_pieces
 
     def inspect(self, print_=True):
+        down_c = self.downwardness()
+        down_w = self.downwardness(False)
+        rad_c = self.avg_radius()
+        length_c = self.length()
         if print_:
             print 'seg id: ' + str(self.ident)
-            print 'down c: ' + str(self.downwardness())
-            print 'down w: ' + str(self.downwardness(False))
-            print 'rad   : ' + str(self.avg_radius())
-            print 'len   : ' + str(self.length())
-        else:
-            return [self.ident, self.downwardness(), self.downwardness(False),
-                    self.avg_radius(), self.length()]
+            print 'down c: ' + str(down_c)
+            print 'down w: ' + str(down_w)
+            print 'rad   : ' + str(rad_c)
+            print 'len   : ' + str(length_c)
+        
+        return [self.ident, down_c, down_w, rad_c, length_c]
 
     def add(self, piece):
         self._pieces = np.append(self._pieces, piece)
@@ -237,3 +243,66 @@ class Segment(object):
     @property
     def zs(self):
         return self._get_attr_list('z')
+
+class SuperSegment(object):
+    
+    def __init__(self, segs, ident=None):
+        self.segs = segs
+        self.num_segs = len(segs)
+        if ident == None:
+            self.ident = [x.ident for x in args]
+        else:
+            self.ident = ident
+
+    def length(self):
+        return np.sum([x.length() for x in self.segs])
+
+    def avg_radius(self):
+        return np.average([x.avg_radius() for x in self.segs],
+                          weights=[x.length() for x in self.segs])
+
+    def downwardness(self, crow=True):
+        return np.average([x.downwardness(crow) for x in self.segs],
+                          weights=[x.length() for x in self.segs])
+
+    def inspect(self, print_=True):
+        down_c = self.downwardness()
+        down_w = self.downwardness(False)
+        rad_c = self.avg_radius()
+        length_c = self.length()
+        if print_:
+            print 'seg id: ' + str(self.ident)
+            print 'down c: ' + str(down_c)
+            print 'down w: ' + str(down_w)
+            print 'rad   : ' + str(rad_c)
+            print 'len   : ' + str(length_c)
+        
+        return [self.ident, down_c, down_w, rad_c, length_c]
+
+    @property
+    def root(self):
+        return self.__getitem__(0)[0]
+
+    @property
+    def rads(self):
+        return np.concatenate([x.rads for x in self.segs])
+    
+    @property
+    def micron_rads(self):
+        return np.concatenate([x.micron_rads for x in self.segs])
+
+    @property
+    def xyzs(self):
+        return np.concatenate([x.xyzs for x in self.segs])
+
+    @property
+    def xs(self):
+        return np.concatenate([x.xs for x in self.segs])
+
+    @property
+    def ys(self):
+        return np.concatenate([x.ys for x in self.segs])
+
+    @property
+    def zs(self):
+        return np.concatenate([x.zs for x in self.segs])
