@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from SWCEntry import SWCEntry
+from SWC import Piece
 
 def read_and_pull(path, cylinder):
     entries = {}
@@ -13,7 +13,7 @@ def read_and_pull(path, cylinder):
             if entry[0] == '#':
                 pass
             else:
-                ent = SWCEntry(entry, cylinder)
+                ent = Piece.from_string(entry, cylinder)
                 entries[ent.ident] = ent
                 radii = np.append(radii, ent.rad)
     

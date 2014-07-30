@@ -2,7 +2,7 @@
 
 import numpy as np
 import tiff.tifffile as tiff
-from SWCEntry import SWCEntry
+from SWC import Piece
 from os.path import splitext
 from compare import compare_masked_to_source_imgs
 
@@ -29,7 +29,7 @@ def find_bounds(vascswc, cylinder=True):
             if line[0] == '#':
                 pass
             else:
-                entry = SWCEntry(line, cylinder) 
+                entry = Piece.from_string(line, cylinder) 
                 if i == 0: 
                     xmin = entry.get_dimmin('x')
                     ymin = entry.get_dimmin('y')
