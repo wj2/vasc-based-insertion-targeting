@@ -16,6 +16,8 @@ Segment contains Piece(s)
 
 """
 
+SEGS_ORDERED_AND_COMPLETE = False
+
 def create_super_seg(indices, swc, ident=None):
     return SuperSegment([swc[i] for i in indices], ident=ident)
 
@@ -40,7 +42,7 @@ def add_to_radius(path, add, rad_ind=5):
 def _delve_to_children(all_, parentest, segment):
     child = all_.get(parentest.ident, False)
     while child != False:
-        child.seg = parentest.seg
+        child.seg = segment.ident
         segment.add(child)
         child = all_.get(child.ident, False)
     return segment
@@ -63,7 +65,7 @@ def dist(c1, c2):
 class SuperSegment(object):
     
     def __init__(self, segs, ident=None):
-        self._vertices = []
+        self._vertices = {}
         self.segs = segs
         self.num_segs = len(segs)
         if ident is None:
@@ -71,6 +73,16 @@ class SuperSegment(object):
         else:
             self.ident = ident
 
+    def segment_id(self, sid):
+        for s in self.segs:
+            if s.ident == sid:
+                return s
+        raise Exception('the segment ID '+str(pid)+' is not in this object')
+
+    def add_segment(self, seg):
+        self.segs.append(seg)
+        self.num_segs += 1
+    
     def length(self):
         return np.sum([x.length() for x in self.segs])
 
@@ -106,40 +118,67 @@ class SuperSegment(object):
         return seg_arr, pie_arr
 
     def _find_edges(self, x, y, z, seg, pie, edges, radius=5): 
-        already_segs = set([x[0] for x in edges])
+        already_segs = set([e[0] for e in edges])
+        assert len(already_segs) == len(edges)
         seg_sect = seg[z-radius:z+radius, y-radius:y+radius, x-radius:x+radius]
         pie_sect = pie[z-radius:z+radius, y-radius:y+radius, x-radius:x+radius]
         vess = set(seg_sect[seg_sect > 0]).difference(already_segs)
+        print seg_sect[seg_sect > 0], vess, already_segs
+        new_edges = []
         for v in vess:
+            print 'where 5 ',np.where(seg_sect == 5)
+            print 'new vess ', v
             # find piece closest to x,y,z
             cs = np.where(seg_sect == v)
-            dists = map(lambda x: dist((x, y, z), x), zip(*cs))
-            c = argmin(dists)
+            print cs
+            z_cs = zip(*cs)
+            dists = map(lambda c: dist((x, y, z), c), z_cs)
+            c = z_cs[np.argmin(dists)]
             pid = pie_sect[c[0], c[1], c[2]]
-            edges.append((v, pid))
-        return edges
+            v_seg = self.segment_id(v)
+            if pid in (v_seg[0].ident, v_seg[-1].ident):
+                new_edges.append((v, pid))
+            else:
+                print 'splitting'
+                new_v = v_seg.split(p_id=pid)
+                self.add_segment(new_v)
+                new_edges.extend([(v, pid), (new_v.ident, pid)])
+                # we've also got to update the segment map
+                nvcs = np.around(new_v.xyzs).astype(int)
+                
+                seg[nvcs[:, 2], nvcs[:, 1], nvcs[:, 0]] = new_v.ident
+                
+        return new_edges, seg, pie
+
+    def _seed_edge_search(self, e, seg, pie, radius=5):
+        print 'new vert'
+        v = Vertex(e.x, e.y, e.z, e.rad, [(e.seg, e.ident)])
+        old_deg = 0
+        while v.degree > old_deg:
+            old_deg = v.degree
+            es, seg, pie = self._find_edges(v.x, v.y, v.z, seg, pie, v.edges)
+            v.add_edges(es, self)
+        return v, seg, pie
 
     def vertexify(self, seg_arr=None, pie_arr=None):
         if seg_arr is None and pie_arr is None:
              seg_arr, pie_arr = self.array_rep()
-        for segment in self:
+        i = 0
+        # allows for handling of newly created segments
+        # on the fly
+        while i < self.num_segs:
+            segment = self[i]
             start = segment[0]
-            old_es = []
-            es = [(start.seg, start.ident)]
-            while len(es) > len(old_es):
-                old_es = es
-                es = self._find_edges(start.x, start.y, start.z, seg_arr, 
-                                      pie_arr, es)
-            self.vertices.append(Vertex.from_edges(es, self))
+            if start.vertex is None:
+                v, seg_arr, pie_arr = self._seed_edge_search(start, seg_arr, 
+                                                             pie_arr)
+                self._vertices[v.ident] = v
             end = segment[-1]
-            old_es = []
-            es = [(end.seg, end.ident)]
-            while len(es) > len(old_es):
-                old_es = es
-                es = self._find_edges(end.x, end.y, end.z, seg_arr, 
-                                      pie_arr, es)
-            self.vertices.append(Vertex.from_edges(es, self))
-            
+            if end.vertex is None:
+                v, seg_arr, pie_arr = self._seed_edge_search(end, seg_arr, 
+                                                             pie_arr)
+                self._vertices[v.ident] = v
+            i += 1
             
     @property
     def vertices(self):
@@ -182,6 +221,7 @@ class SWC(SuperSegment):
                  cylinder=True, ident=None):
         """ must have one of segments or path or both """
         self.micsperpix = microns_perpixel
+        self._vertices = {}
         if path is None and segments is not None:
             super(SWC, self).__init__(segments, ident)
         elif path is not None:
@@ -192,7 +232,6 @@ class SWC(SuperSegment):
         self.num_segs = len(segments) 
         
     def _define_by_path(self, path, cylinder, segs, ident):
-        self._vertices = []
         if ident is None:
             self.ident = path
         if segs is None:
@@ -217,12 +256,11 @@ class SWC(SuperSegment):
 
         # now we have all parents in one dict and all other segments in another
         # indexed by parent
-        for i, value in enumerate(self.segs):
-            value.ident = i + 1 # no zero seg value
-            value[0].seg = i
-            most_parentest = value[0]
+        for i, segment in enumerate(self.segs):
+            segment[0].seg = segment.ident
+            most_parentest = segment[0]
             self.segs[i] = _delve_to_children(dict_all, most_parentest, 
-                                              value)
+                                              segment)
             
     def __getitem__(self, key):
         return self.segs[key]
@@ -238,10 +276,16 @@ class SWC(SuperSegment):
         return SWC(segments=new_segs, microns_perpixel=self.micsperpix)
         
 class Segment(object): 
+
+    _seg_counter = 0
     
-    def __init__(self, micsperpix, ident=-1, pieces=None):
+    def __init__(self, micsperpix, ident=None, pieces=None):
         self.mpp = micsperpix
-        self.ident = ident
+        if ident is None:
+            Segment._seg_counter += 1
+            self.ident = Segment._seg_counter
+        else:
+            self.ident = ident
         if pieces is None:
             self._pieces = np.array([])
             self._num_pieces = 0
@@ -257,6 +301,15 @@ class Segment(object):
     
     def __len__(self):
         return self._num_pieces
+
+    def piece_id(self, pid, index=False):
+        for i, p in enumerate(self._pieces):
+            if p.ident == pid:
+                ret = p
+                if index:
+                    ret = (p, i)
+                return ret
+        raise Exception('the piece ID '+str(pid)+' is not in this Segment')
 
     def inspect(self, print_=True):
         down_c = self.downwardness()
@@ -352,14 +405,16 @@ class Segment(object):
             dir_ = dir_ * -1
         return dir_
 
-    def split(self, piece_id=None, piece_num=None):
-        if piece_id is None and piece_num is not None:
-            i_of = piece_num
-        elif seg_id is not None and piece_num is None:
-            i_of = map(lambda x: x.ident, self._pieces).index(piece_id)
+    def split(self, p_id=None, p_num=None):
+        if p_id is None and p_num is not None:
+            i_of = p_num
+        elif p_id is not None and p_num is None:
+            i_of = self.piece_id(p_id, True)[1]
         else:
             raise Exception('split takes either piece_id or piece_num, not '
                             'both or neither')
+        print len(self._pieces)
+        print i_of
         new_seg = Segment(self.mpp, pieces=self._pieces[i_of:])
         self._pieces = self._pieces[:i_of+1]
         self._num_pieces = len(self._pieces)
@@ -419,8 +474,9 @@ class Piece(object):
         self.z = float(z)
         self.rad = float(rad)
         self.par = int(par)
+        self.vertex = None
         if len(attributes) > 7:
-            self.seg = attributes[7]
+            self.seg = int(attributes[7])
         else:
             self.seg = -1
 
@@ -444,11 +500,7 @@ class Piece(object):
 
     @property
     def xyz(self):
-        return (self.x, self.y, self.z)
-
-    @property
-    def is_vertex(self):
-        return False
+        return (self.x, self.y, self.z) 
 
     @property
     def attributes(self):
@@ -458,7 +510,11 @@ class Piece(object):
 
 class Vertex(object):
 
+    _vertex_counter = 0
+
     def __init__(self, x, y, z, r, edges):
+        Vertex._vertex_counter += 1
+        self.ident = Vertex._vertex_counter
         self.x = x
         self.y = y
         self.z = z
@@ -475,26 +531,32 @@ class Vertex(object):
 
     @classmethod
     def from_edges(cls, edges, swc):
-        e1 = swc[edges[0][0]][edges[0][1]]
+        e1 = swc.segment_id(edges[0][0]).piece_id(edges[0][1])
+        e1.vertex = self.ident
         v = cls(e1.x, e1.y, e1.z, e1.rad, edges[0])
         return v.add_edges(edges[1:], swc)
 
     def add_edge_bypiece(self, piece):
+        piece.vertex = self.ident
         self.add_edge(piece.x, piece.y, piece.z, piece.rad, 
                       (piece.seg, piece.ident))
 
     def add_edge(self, x, y, z, r, e):
-        self.x = (self.x + x) / 2.
-        self.y = (self.y + y) / 2.
-        self.z = (self.z + z) / 2.
+        self.x = (self.degree*self.x + x) / (self.degree + 1.)
+        self.y = (self.degree*self.y + y) / (self.degree + 1.)
+        self.z = (self.degree*self.z + z) / (self.degree + 1.)
         self.rad = max(self.rad, r)
         self.edges.append(e)
         self.degree = self.degree + 1
 
     def add_edges(self, es, swc):
         for e in es:
-            p = swc[e[0]].piece_id(e[1])
-            self.add_edge(p.x, p.y, p.z, p.rad, e))
+            if SEGS_ORDERED_AND_COMPLETE:
+                p = swc[e[0] - 1].piece_id(e[1])
+            else:
+                p = swc.segment_id(e[0]).piece_id(e[1])
+            p.vertex = self.ident
+            self.add_edge(p.x, p.y, p.z, p.rad, e)
 
     @property
     def xyz(self):
