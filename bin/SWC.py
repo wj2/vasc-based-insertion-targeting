@@ -120,17 +120,15 @@ class SuperSegment(object):
     def _find_edges(self, x, y, z, seg, pie, edges, radius=5): 
         already_segs = set([e[0] for e in edges])
         assert len(already_segs) == len(edges)
+        x, y, z = np.around(x), np.around(y), np.around(z)
         seg_sect = seg[z-radius:z+radius, y-radius:y+radius, x-radius:x+radius]
         pie_sect = pie[z-radius:z+radius, y-radius:y+radius, x-radius:x+radius]
         vess = set(seg_sect[seg_sect > 0]).difference(already_segs)
-        print seg_sect[seg_sect > 0], vess, already_segs
         new_edges = []
         for v in vess:
-            print 'where 5 ',np.where(seg_sect == 5)
-            print 'new vess ', v
+            # ISSUE: segments can overlap from SWC
             # find piece closest to x,y,z
             cs = np.where(seg_sect == v)
-            print cs
             z_cs = zip(*cs)
             dists = map(lambda c: dist((x, y, z), c), z_cs)
             c = z_cs[np.argmin(dists)]
@@ -139,19 +137,16 @@ class SuperSegment(object):
             if pid in (v_seg[0].ident, v_seg[-1].ident):
                 new_edges.append((v, pid))
             else:
-                print 'splitting'
                 new_v = v_seg.split(p_id=pid)
                 self.add_segment(new_v)
                 new_edges.extend([(v, pid), (new_v.ident, pid)])
                 # we've also got to update the segment map
                 nvcs = np.around(new_v.xyzs).astype(int)
-                
                 seg[nvcs[:, 2], nvcs[:, 1], nvcs[:, 0]] = new_v.ident
                 
         return new_edges, seg, pie
 
     def _seed_edge_search(self, e, seg, pie, radius=5):
-        print 'new vert'
         v = Vertex(e.x, e.y, e.z, e.rad, [(e.seg, e.ident)])
         old_deg = 0
         while v.degree > old_deg:
@@ -413,8 +408,6 @@ class Segment(object):
         else:
             raise Exception('split takes either piece_id or piece_num, not '
                             'both or neither')
-        print len(self._pieces)
-        print i_of
         new_seg = Segment(self.mpp, pieces=self._pieces[i_of:])
         self._pieces = self._pieces[:i_of+1]
         self._num_pieces = len(self._pieces)
@@ -429,7 +422,15 @@ class Segment(object):
         for piece in self:
             xyz = piece.xyz
             r_zyx = np.around(xyz)[::-1]
+            if seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]] > 0:
+                raise Warning('segment map overlap between '
+                              +str(seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]])
+                              +' and '+str(self.ident))
             seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]] = self.ident
+            if pie_arr[r_zyx[0], r_zyx[1], r_zyx[2]] > 0:
+                raise Warning('piece map overlap between '
+                              +str(piece_arr[r_zyx[0], r_zyx[1], r_zyx[2]])
+                              +' and '+str(piece.ident))
             pie_arr[r_zyx[0], r_zyx[1], r_zyx[2]] = piece.ident
         return seg_arr, pie_arr
             
