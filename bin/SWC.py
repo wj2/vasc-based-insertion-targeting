@@ -69,9 +69,21 @@ class SuperSegment(object):
         self.segs = segs
         self.num_segs = len(segs)
         if ident is None:
-            self.ident = [x.ident for x in args]
+            self.ident = 'unknown'
         else:
             self.ident = ident
+
+    def __repr__(self):
+        rep = '# '+str(self.ident)+'\n'
+        rep += '##n, type, x,y,z,radius,parent \n'
+        for seg in self.segs:
+            rep += str(seg)
+        return rep
+
+    def write(self, filename):
+        with open(filename, 'wb') as f:
+            f.write(str(self))
+        return None
 
     def segment_id(self, sid):
         for s in self.segs:
@@ -256,7 +268,35 @@ class SWC(SuperSegment):
             most_parentest = segment[0]
             self.segs[i] = _delve_to_children(dict_all, most_parentest, 
                                               segment)
-            
+
+    @classmethod
+    def from_vida_mat(cls, path, mpp, buff=70):
+        from scipy.io import loadmat
+        vmat = loadmat(path)
+        v = vmat['vectorizedStructure']
+        strands = v['Strands'][0,0].T
+        verts_xyz = v['Vertices'][0,0]['AllVerts'][0,0]
+        verts_rad = v['Vertices'][0,0]['AllRadii'][0,0]
+        pid = 0
+        segs = []
+        for s in strands:
+            # matlab indexing begins at 1, python begins at zero
+            inds = s['StartToEndIndices'][0][0] - 1 
+            ps = []
+            n = len(inds)
+            for i, ind in enumerate(inds):
+                pid += 1
+                y, x, z = verts_xyz[ind] - 70
+                if i == n - 1:
+                    par = -1
+                else:
+                    par = pid + 1
+                rad = verts_rad[ind]
+                atts = (pid, 2, x, y, z, rad, par)
+                ps.append(Piece(atts, True))
+            segs.append(Segment(mpp, pieces=ps))
+        return SWC(segments=segs, microns_perpixel=mpp)
+
     def __getitem__(self, key):
         return self.segs[key]
 
@@ -287,6 +327,12 @@ class Segment(object):
         else:
             self._pieces = np.array(pieces)
             self._num_pieces = len(pieces)
+
+    def __repr__(self):
+        rep = ''
+        for piece in self._pieces:
+            rep += str(piece)
+        return rep
         
     def __getitem__(self, key):
         return self._pieces[key]
@@ -498,6 +544,11 @@ class Piece(object):
         else:
             dimmax = getattr(self, dim) + self.rad
         return dimmax
+
+    def __repr__(self):
+        return (str(self.ident)+' '+str(self.struct)+' '+str(self.x)+' '
+                +str(self.y)+' '+str(self.z)+' '+str(self.rad)+' '
+                +str(self.par)+'\n')    
 
     @property
     def xyz(self):
