@@ -7,7 +7,8 @@ import SWC
 
 class MPLviewer:
 
-    def __init__(self, masked_img, swc, condition=None, display_ids=True):
+    def __init__(self, masked_img, swc, condition=None, start_i=0,
+                 display_ids=True):
         """ 
         condition is either None or a function that returns true if
         a given segment should be included and false otherwise
@@ -19,7 +20,7 @@ class MPLviewer:
         self.imgdisplay = self.fig.add_subplot(self.gs[:, :])
         self.display_ids = display_ids
         if len(masked_img.shape) == 3:
-            self.index = 0
+            self.index = start_i
             self.max_index = masked_img.shape[0] - 1
             self.imgshown = self.imgdisplay.imshow(masked_img[self.index], 
                                                    interpolation='none')
@@ -42,7 +43,7 @@ class MPLviewer:
         plt.draw()
         
     def _process_swc(self, swc, condition): 
-        if condition != None:
+        if condition is not None:
             swc = swc.filter(condition)
         segs = np.zeros((self.max_index + 1), dtype=np.dtype('object'))
         for segment in swc:

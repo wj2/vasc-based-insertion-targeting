@@ -200,7 +200,7 @@ def plot_line_prof(sect, overlay, profile, plr=None, xy=None, title=None,
                               markeredgecolor='g', markerfacecolor='white', 
                               markersize=10)
         im_plot.legend((imcirc_l, imrect), ('vaa3d','line profile'),
-                       numpoints=1)
+                       numpoints=1, )
         
     prof_plot.plot(profile)
     im_plot.set_title(prof_title)
@@ -210,10 +210,11 @@ def plot_line_prof(sect, overlay, profile, plr=None, xy=None, title=None,
     plt.show()
 
 def plot_radii(fill_rads, calc_rads):
-    rfig = plt.figure()
+    rfig = plt.figure(figsize=(2,3))
     splot = rfig.add_subplot(111)
-    splot.set_xlabel('vaa3d radius fill rads')
-    splot.set_ylabel('line profile calculated rads')
+    splot.tick_params(axis='both', which='major', labelsize=5)
+    splot.set_xlabel('vaa3d radius fill', fontsize='x-small')
+    splot.set_ylabel('line profile', fontsize='x-small')
 
     splot.plot(fill_rads, calc_rads, 'bo', markersize=2)
     rad_max = max(fill_rads + calc_rads)
@@ -223,7 +224,8 @@ def plot_radii(fill_rads, calc_rads):
     coefs = np.polyfit(fill_rads, calc_rads, 1)
     fit_y = np.polyval(coefs, fill_rads)
     splot.plot(fill_rads, fit_y, 'b--', label='line of best fit')
-    splot.legend(loc=2)
+    splot.legend(numpoints=1, handletextpad=1, borderaxespad=10,
+                 fontsize='xx-small')
 
     plt.show()
     return

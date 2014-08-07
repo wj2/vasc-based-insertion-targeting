@@ -1,5 +1,6 @@
 
 import numpy as np
+import itertools
 import matplotlib.pyplot as plt
 from os.path import splitext
 from compare import angle_between
@@ -75,12 +76,13 @@ class SuperSegment(object):
 
     def __repr__(self):
         rep = '# '+str(self.ident)+'\n'
-        rep += '##n, type, x,y,z,radius,parent \n'
+        rep += ('##n, type, x,y,z,radius,parent,segment_id,segment_layer,'+
+                'feature_value \n')
         for seg in self.segs:
             rep += str(seg)
         return rep
 
-    def write(self, filename):
+    def write(self, filename, eswc=True):
         with open(filename, 'wb') as f:
             f.write(str(self))
         return None
@@ -89,7 +91,7 @@ class SuperSegment(object):
         for s in self.segs:
             if s.ident == sid:
                 return s
-        raise Exception('the segment ID '+str(pid)+' is not in this object')
+        raise Exception('the segment ID '+str(sid)+' is not in this object')
 
     def add_segment(self, seg):
         self.segs.append(seg)
@@ -123,8 +125,8 @@ class SuperSegment(object):
     def array_rep(self):
         coords = self.xyzs
         dims = np.max(coords, axis=0)[::-1] + 1
-        seg_arr = np.zeros(dims) # reverse for zyx
-        pie_arr = np.zeros(dims)
+        seg_arr = np.zeros(dims, dtype=list) # reverse for zyx
+        pie_arr = np.zeros(dims, dtype=list)
         for segment in self:
             seg_arr, pie_arr = segment.array_rep(seg_arr, pie_arr)
         return seg_arr, pie_arr
@@ -133,33 +135,55 @@ class SuperSegment(object):
         already_segs = set([e[0] for e in edges])
         assert len(already_segs) == len(edges)
         x, y, z = np.around(x), np.around(y), np.around(z)
-        seg_sect = seg[z-radius:z+radius, y-radius:y+radius, x-radius:x+radius]
-        pie_sect = pie[z-radius:z+radius, y-radius:y+radius, x-radius:x+radius]
-        vess = set(seg_sect[seg_sect > 0]).difference(already_segs)
+        seg_sect = seg[z-radius:z+radius+1, y-radius:y+radius+1, 
+                       x-radius:x+radius+1]
+        pie_sect = pie[z-radius:z+radius+1, y-radius:y+radius+1, 
+                       x-radius:x+radius+1]
+        vs = itertools.chain.from_iterable(seg_sect[seg_sect != 0])
+        ps = itertools.chain.from_iterable(pie_sect[pie_sect != 0])
+        vess = set(vs).difference(already_segs)
         new_edges = []
         for v in vess:
-            # ISSUE: segments can overlap from SWC
             # find piece closest to x,y,z
-            cs = np.where(seg_sect == v)
+            cs = seg_sect.nonzero()
             z_cs = zip(*cs)
+            z_cs = [c for c in z_cs if v in seg_sect[c[0],c[1],c[2]]]
             dists = map(lambda c: dist((x, y, z), c), z_cs)
             c = z_cs[np.argmin(dists)]
-            pid = pie_sect[c[0], c[1], c[2]]
+            ind = seg_sect[c[0], c[1], c[2]].index(v)
+            pid = pie_sect[c[0], c[1], c[2]][ind]
             v_seg = self.segment_id(v)
             if pid in (v_seg[0].ident, v_seg[-1].ident):
                 new_edges.append((v, pid))
+            elif v_seg[0].ident in ps:
+                new_edges.append((v, v_seg[0].ident))
+            elif v_seg[-1].ident in ps:
+                new_edges.append((v, v_seg[-1].ident))                
             else:
                 new_v = v_seg.split(p_id=pid)
                 self.add_segment(new_v)
                 new_edges.extend([(v, pid), (new_v.ident, pid)])
                 # we've also got to update the segment map
                 nvcs = np.around(new_v.xyzs).astype(int)
-                seg[nvcs[:, 2], nvcs[:, 1], nvcs[:, 0]] = new_v.ident
+                old_ls = seg[nvcs[:, 2], nvcs[:, 1], nvcs[:, 0]]
+                old_ps = pie[nvcs[:, 2], nvcs[:, 1], nvcs[:, 0]]
+                for i, l in enumerate(old_ls):
+                    # ISSUE: segment loops back on itself, this confuses
+                    # the indexing
+                    ind_p = old_ps[i].index(new_v[i].ident)
+                    l[ind_p] = new_v.ident
+                first = np.around(new_v[0].xyz)
+                seg[first[2], first[1], first[0]].append(new_v.ident) 
+                pie[first[2], first[1], first[0]].append(new_v[0].ident)
+                # this creates duplication that confuses the above comment
+                # issue
                 
         return new_edges, seg, pie
 
     def _seed_edge_search(self, e, seg, pie, radius=5):
+        # TODO: Check travel, don't want to travel too much
         v = Vertex(e.x, e.y, e.z, e.rad, [(e.seg, e.ident)])
+        e.vertex = v.ident
         old_deg = 0
         while v.degree > old_deg:
             old_deg = v.degree
@@ -186,6 +210,18 @@ class SuperSegment(object):
                                                              pie_arr)
                 self._vertices[v.ident] = v
             i += 1
+
+    def prune_vertices(self, minlen=10):
+        for k in self.vertices.keys():
+            v = self.vertices[k]
+            for e in v.edges[:]:
+                edge = self.segment_id(e[0])
+                if edge.length() < minlen:
+                    v.remove_edge(e)
+                    edge[0].vertex = None
+                    edge[-1].vertex = None
+            if v.degree == 0:
+                del self.vertices[k]
             
     @property
     def vertices(self):
@@ -329,7 +365,7 @@ class Segment(object):
             self._num_pieces = len(pieces)
 
     def __repr__(self):
-        rep = ''
+        rep = '## segment '+str(self.ident)+' ##\n'
         for piece in self._pieces:
             rep += str(piece)
         return rep
@@ -350,7 +386,8 @@ class Segment(object):
                 if index:
                     ret = (p, i)
                 return ret
-        raise Exception('the piece ID '+str(pid)+' is not in this Segment')
+        raise Exception('the piece ID '+str(pid)+' is not in Segment '
+                        +str(self.ident))
 
     def inspect(self, print_=True):
         down_c = self.downwardness()
@@ -463,21 +500,17 @@ class Segment(object):
         if seg_arr is None and pie_arr is None:
             coords = self.xyzs
             dims = coords.max(axis=0)[::-1]
-            seg_arr = np.zeros(dims)
-            pie_arr = np.zeros(dims)
+            seg_arr = np.zeros(dims, dtype=list)
+            pie_arr = np.zeros(dims, dtype=list)
         for piece in self:
             xyz = piece.xyz
             r_zyx = np.around(xyz)[::-1]
-            if seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]] > 0:
-                raise Warning('segment map overlap between '
-                              +str(seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]])
-                              +' and '+str(self.ident))
-            seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]] = self.ident
-            if pie_arr[r_zyx[0], r_zyx[1], r_zyx[2]] > 0:
-                raise Warning('piece map overlap between '
-                              +str(piece_arr[r_zyx[0], r_zyx[1], r_zyx[2]])
-                              +' and '+str(piece.ident))
-            pie_arr[r_zyx[0], r_zyx[1], r_zyx[2]] = piece.ident
+            if seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]] != 0:
+                seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]].append(self.ident)
+                pie_arr[r_zyx[0], r_zyx[1], r_zyx[2]].append(piece.ident)
+            else:
+                seg_arr[r_zyx[0], r_zyx[1], r_zyx[2]] = [self.ident]
+                pie_arr[r_zyx[0], r_zyx[1], r_zyx[2]] = [piece.ident]
         return seg_arr, pie_arr
             
     @property
@@ -548,7 +581,7 @@ class Piece(object):
     def __repr__(self):
         return (str(self.ident)+' '+str(self.struct)+' '+str(self.x)+' '
                 +str(self.y)+' '+str(self.z)+' '+str(self.rad)+' '
-                +str(self.par)+'\n')    
+                +str(self.par)+' '+str(self.seg)+' 1 0\n')    
 
     @property
     def xyz(self):
@@ -592,6 +625,10 @@ class Vertex(object):
         piece.vertex = self.ident
         self.add_edge(piece.x, piece.y, piece.z, piece.rad, 
                       (piece.seg, piece.ident))
+
+    def remove_edge(self, e):
+        self.edges.remove(e)
+        self.degree -= 1        
 
     def add_edge(self, x, y, z, r, e):
         self.x = (self.degree*self.x + x) / (self.degree + 1.)

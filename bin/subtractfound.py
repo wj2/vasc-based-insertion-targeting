@@ -62,12 +62,26 @@ def find_bounds(vascswc, cylinder=True):
      
     return bounds
 
-def resize_mask(maskpath,imgpath, swcpath, cylinder):
+def resize_mask(swcpath, cylinder=True, maskpath=None, imgpath=None, 
+                imshape=None):
     bounds = find_bounds(swcpath, cylinder)
-    mask = tiff.imread(maskpath)
-    img = tiff.imread(imgpath)
-    cropped_mask = crop_mask(mask, bounds, img.shape)
-    tiff.imsave(splitext(maskpath)[0] + '-cropped.tif', cropped_mask)
+    if imgpath is None and imshape is None:
+        raise IOError('need to be given either imgpath or imshape')
+    elif imgpath is not None and imshape is None:
+        imshape = tiff.imread(imgpath)
+    if maskpath is None:
+        print 'cannot resize mask, no path given'
+        print '---- orig img ----'
+        x = -np.around(bounds['x'][0])
+        print 'x : '+str(x)+' to '+str(x+imshape[2])
+        y = -np.around(bounds['y'][0])
+        print 'y : '+str(y)+' to '+str(y+imshape[1])
+        z = -np.around(bounds['z'][0])
+        print 'z : '+str(z)+' to '+str(z+imshape[0])
+    else:
+        mask = tiff.imread(maskpath)
+        cropped_mask = crop_mask(mask, bounds, img.shape)
+        tiff.imsave(splitext(maskpath)[0] + '-cropped.tif', cropped_mask)
     return
 
 def mask_findings(imgpath, maskpath, swcpath, cylinder):
