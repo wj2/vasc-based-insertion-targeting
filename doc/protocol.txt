@@ -1,0 +1,96 @@
+
+# Experimental protocol #
+
+#### PREP ####
+##### if non-headplated mouse #####
+1. induce anesthesia
+2. attach headplate
+3. do craniotomy
+4. IVS does tail vein injection of 50ul dextran Texas red
+
+##### if headplated mouse #####
+1. IVS does tail vein injection of 50ul dextran Texas red
+2. do craniotomy
+
+#### IMAGE ONE ####
+1. target within craniotomy using epi
+   * take photo of final location
+2. switch to 2p
+   * note vertical stage location
+3. move **stage** down 120um to find same plane of focus as in epi
+4. locate surface by moving stage up and down
+   * note offset from original vertical stage location in (2)
+5. pre-stack on dm6000
+   * make sure saving of Channel 1 is off
+6. move vertical stage position back to location in (2)
+
+#### RECORD ####
+1. coat electrode in live/dead
+2. move mouse from imaging headpost plate to recording headpost area
+   * note location of mouse on imaging plate as well as possible
+2. base electrode insertion on epi photo of final location
+3. insert electrode using manipulator
+4. do stimuli
+5. remove electrode
+6. move mouse from recording headpost area to imaging headpost plate
+   * attempt to position mouse the same as before moved
+
+#### IMAGE TWO ####
+1. target within epi, based on previously taken epi photo
+   * adjust rotation as necessary
+   * there should be no need to adjust focus
+2. switch to 2p
+3. move stage **down** the previously recorded offset between surface and epi
+   focus
+4. post-stack on dm6000
+   * make sure saving of Channel 1 is off
+
+#### POST ####
+1. take mouse to IVS for perfusion
+
+# Analysis protocol #
+
+#### TRACING ####
+1. Import stack into vaa3d using Import->General image series...
+2. Enhance contrast of image using Image/Data->image type->saturate...
+3. Gaussian filter the image with a 5x5x5, sigma=2 window using 
+   Plug-in->image_filters->Gaussian_filter
+4. re-convert image to 8bit using Image/Data->image type->linear rescale...
+5. Save image as <designation>-8bitgf5552
+6. Close all open vaa3d windows except saved image from (5)
+7. Snake trace image using Plug-In->neuron_tracing->snake_tracing_trace
+8. Open image from (5) in 3D view (ctrl+v) and drag generated .swc file on
+9. Right click on a red trace and click "edit this neuron"
+10. Right click on any color of trace and click "change this neuron radius"
+11. Enter -1 into the first dialog box
+12. Leave the value 5 in the second dialog box
+13. Right click on any color of trace and click "finished editing this neuron"
+14. Right click on a red trace and click "save selected structure", save as
+    <designation>-8bitgf5552-snakewrad5
+15. Convert saved swc file to mask using 
+    Plug-In->neuron_utilities->swc_to_maskimage_cylinder_unit->swc2mask
+16. save mask as <designation>-8bitgf5552-snakewrad5-mask
+17. in python, import resize_mask from subtractfound in the bin directory of 
+    the validation code
+18. run resize_mask(<path to swc from (14)>, imshape=<z, y, x shape of 
+    original image>)
+19. crop mask image from (16) according to the output from (18), using 
+    Image/Data->geometry->crop image (minMax bounding box)
+    * if the high z-coord suggested by (18) is larger than the mask, simply 
+      use the largest possible value
+20. save cropped mask image as <designation>-8bitgf5552-snakewrad5-cropmask
+21. Distance transform the cropped mask from (19) using 
+    Plug-In->image_filters->Grayscale_Image_Distance_Transform with parameters
+    .5, 1, 0, 1 from top to bottom in the dialog box
+22. save transformed image as 
+    <designation>-8bitgf5552-snakewrad5-cropmask-distance
+23. do steps (7-14)
+    * trace the distance transformed image from (22)
+    * use the image from (5) for the 3D view and radius fill
+    * save the swc file as 
+      <designation>-8bitgf5552-snakewrad5-cropmask-distance-snakewrad5
+
+#### VASCULAR DAMAGE ANALYSIS ####
+
+
+#### RECORDING YIELD ANALYSIS ####
