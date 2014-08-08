@@ -1,0 +1,18 @@
+
+LEFT = ()
+RIGHT = ()
+FORWARD = ()
+BACKWARD = ()
+
+PROBE_UP = ()
+PROBE_DOWN = ()
+VIEW_UP = ()
+VIEW_DOWN = ()
+
+VERT_XZ_CCW = ()
+VERT_XZ_CW = ()
+VERT_YZ_CCW = ()
+VERT_YZ_CW = ()
+
+HORIZ_XY_CCW = ()
+HORIZ_XY_CW = ()

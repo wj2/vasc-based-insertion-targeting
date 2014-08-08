@@ -105,4 +105,4 @@ class MPLviewer:
         self.imgdisplay.set_title(str(self.index) + '/' + str(self.max_index))
         plt.draw()
 
-    
+   
