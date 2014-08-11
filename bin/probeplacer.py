@@ -1,10 +1,12 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as color
 from scipy.ndimage import rotate
-import tifffile.tiff as tiff
+import tiff.tifffile as tiff
 
-from manipkeys import *
+import util
+from probeplacer_keymap import *
 
 def make_red_alpha_scale_cm():
     redalphadict = {'red' : [(0.0, 0.0, 0.0),
@@ -24,14 +26,17 @@ class ProbePlacer(object):
     
     def __init__(self, stackpath, probesize, probedepth, collapse=1, ind=0):
         stack = tiff.imread(stackpath)
-        self.stack = self._collapse_stack(stack, collapse)
+        self.stack = util.collapse_stack(stack, collapse)
         self.collapse = collapse
         self._max_i = self.stack.shape[0] - 1
         self._ci = ind
         self._maxx = self.stack.shape[2] - 1
         self._maxy = self.stack.shape[1] - 1
-
-        self.probe = np.ones((probedepth, probesize[1], probesize[0]))
+        self.probe = np.ones((probedepth / collapse, probesize[1], 
+                              probesize[0] + 1))
+        print self.probe[:, :, -1]
+        self.probe[:, :, -1] = 0
+        self._rotated_probe = self.probe
         self._p_xy_ang = 0
         self._p_xz_ang = 0
         self._p_yz_ang = 0
@@ -42,64 +47,55 @@ class ProbePlacer(object):
         self._fig = plt.figure()
         self._im_ax = self._fig.add_subplot(1,1,1)
         self._im = self._im_ax.imshow(self.stack[self._ci], 
-                                      interpolation='none'
-                                      cm='gray')
+                                      interpolation='none',
+                                      cmap='gray')
         racm = make_red_alpha_scale_cm()
-        self._pim = self._im_ax.imshow(self.probe[self._ci + 
+        self._pim = self._im_ax.imshow(self._rotated_probe[self._ci + 
                                                   self._p_vert_offset],
-                                       cm=racm)
+                                       cmap=racm)
         self._fig.canvas.mpl_connect('key_press_event', self._key_press)
         self._fig.canvas.mpl_connect('button_press_event', self._on_press)
         self._fig.canvas.mpl_connect('button_release_event', self._on_release)
         self._fig.canvas.mpl_connect('motion_notify_event', self._on_move)
         self._update_view()
-
-    def _collapse_stack(self, stack, collapse):
-        if collapse > 1: 
-            z_dim, y_dim, x_dim = stack.shape
-            z_dim = z_dim / collapse
-            new_container = np.zeros((z_dim, y_dim, x_dim))
-            for i in xrange(z_dim):
-                x = i * collapse
-                new_container[i] = np.mean(stack[x:x+z_dim], axis=0)
-        else:
-            new_container = stack
-        return new_container
+        plt.show()
 
     def _coord_to_extent(self, x, y):
-        return [x - (p.shape[2] / 2),
-                x + (p.shape[2] / 2),
-                y - (p.shape[1] / 2),
-                y + (p.shape[1] / 2)]
+        return [x - (self._rotated_probe.shape[2] / 2),
+                x + (self._rotated_probe.shape[2] / 2),
+                y - (self._rotated_probe.shape[1] / 2),
+                y + (self._rotated_probe.shape[1] / 2)]
 
     def _draw_probe(self):
-        self._pim.set_data(self.probe[self._ci + self._p_vert_offset])
+        self._pim.set_data(self._rotated_probe[self._ci + self._p_vert_offset])
         self._pim.set_extent(self._coord_to_extent(self._px, self._py))
-        self._im.set_xlim(0, self._maxx + 1)
-        self._im.set_ylim(self._maxy + 1, 0)
+        self._im_ax.set_xlim(0, self._maxx + 1)
+        self._im_ax.set_ylim(self._maxy + 1, 0)
 
-    def _update_view():
-        self._im.set_data(self.stack[self._ci])
+    def _update_view(self):
         self._draw_probe()
+        self._im.set_data(self.stack[self._ci])
         plt.draw()
 
-    def _rotate_probe(mod, axes):
-        # not sure if want to use this code
-        # if axes == 'xy':
-        #     axes = (1, 2)
-        #     result = self._p_xy_ang + mod
-        # elif axes == 'yz':
-        #     axes = (1,0)
-        #     result = self._p_yz_ang + mod
-        # elif axes == 'xz':
-        #     axes = (2,0)
-        #     result = self._p_xz_ang + mod
-        # if result in (0, 180):
-        #     self.probe = np.ones(())
-        self.probe = rotate(self.probe, mod, axes=axes)
+    def _rotate_probe(self, mod, axes):
+        if axes == 'xz': # axes (2, 0)
+            self._p_xz_ang += mod
+        elif axes == 'yz': # axes (1, 0)
+            self._p_yz_ang += mod
+        elif axes == 'xy': # axes (2, 1)
+            self._p_xy_ang += mod
+        self._rotated_probe = rotate(self.probe, self._p_xz_ang, axes=(2, 0))
+        self._rotated_probe = rotate(self._rotated_probe, self._p_yz_ang, 
+                                     axes=(1, 0))
+        self._rotated_probe = rotate(self._rotated_probe, self._p_xy_ang, 
+                                     axes=(2,1))
+        print self._rotated_probe
+        print self._rotated_probe.shape
+        print self._rotated_probe.max()
+        print self._rotated_probe.min()
         self._update_view()
 
-    def _move_probe(mod, axis):
+    def _move_probe(self, mod, axis):
         if axis == 'x':
             self._px += mod
         elif axis == 'y':
@@ -108,13 +104,14 @@ class ProbePlacer(object):
             self._p_vert_offset += mod
         self._update_view()
 
-    def _move_view(mod):
+    def _move_view(self, mod):
         result = self._ci + mod
-        if result >= 0 and result <= self._max_index:
+        if result >= 0 and result <= self._max_i:
             self._ci += mod
-        self.update_view()
+        self._update_view()
 
     def _key_press(self, event):
+        print event.key
         if event.key in LEFT:
             self._move_probe(-1, 'x')
         elif event.key in RIGHT:
@@ -131,18 +128,25 @@ class ProbePlacer(object):
             self._move_view(-1)
         elif event.key in VIEW_DOWN:
             self._move_view(1)
-        elif event.key in VERT_XZ_CCW:
-            self._rotate_probe(-1, (2, 0))
-        elif event.key in VERT_XZ_CW:
-            self._rotate_probe(1, (2, 0))
-        elif event.key in VERT_YZ_CCW:
-            self._rotate_probe(-1, (1, 0))
-        elif event.key in VERT_YZ_CW:
-            self._rotate_probe(1, (1, 0))
-        elif event.key in HORIZ_XY_CCW:
-            self._rotate_probe(-1, (2, 1))
-        elif event.key in HORIZ_XY_CW:
-            self._rotate_probe(1, (2, 1))
+        elif event.key in ROTATE_XZ_CCW:
+            self._rotate_probe(-1, 'xz')
+        elif event.key in ROTATE_XZ_CW:
+            self._rotate_probe(1, 'xz')
+        elif event.key in ROTATE_YZ_CCW:
+            self._rotate_probe(-1, 'yz')
+        elif event.key in ROTATE_YZ_CW:
+            self._rotate_probe(1, 'yz')
+        elif event.key in ROTATE_XY_CCW:
+            self._rotate_probe(-1, 'xy')
+        elif event.key in ROTATE_XY_CW:
+            self._rotate_probe(1, 'xy')
+        elif event.key in CLOSE_GUI_FINISHED:
+            self.info = {'xy_ang':self._p_xy_ang, 'xz_ang':self._p_xz_ang,
+                         'yz_ang':self._p_yz_ang, 'x':self._px, 'y':self._py,
+                         'offset':self._vert_offset}
+            self.probe = self._rotated_probe
+        else:
+            print 'missed'
 
     def _on_press(self, event):
         x = event.xdata
