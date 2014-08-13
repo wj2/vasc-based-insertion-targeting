@@ -1,0 +1,41 @@
+#!/usr/local/bin
+
+import numpy as np
+
+from bin import parser
+from bin.prepostmatcher import PrePostMatcher
+from bin.probeplacer import ProbePlacer
+from bin.swc import SWC
+
+if __name__ == '__main__':
+    p = parser.damage_quant_parser()
+    args = p.parse_args()
+    probe_placer = ProbePlacer()
+    pp_matcher = PrePostMatcher()
+
+    # reconcile coordinates
+    pplace_info = probe_placer.info
+    pp_match_info = pp_matcher.info
+    # extract probe column
+    pre_rot = pp_match_info['xy_ang']
+    x_off, y_off = pp_match_info['x'], pp_match_info['y']
+    xy_adj = pre_rot - pplace_info['xy_ang']
+    probe = probe_placer.get_probe(xy=xy_adj)
+    # find x,y in rotated pre
+    x, y = pplace_info['x'] + x_off, pplace_info['y'] + y_off
+    # find z-offset from pre
+    z = pplace_info['offset'] - pp_match_info['offset']
+    # TODO: find x,y in original orientation of pre (no rotation), account for
+    # change to the orientation of probe given that transformation
+    # TODO: the above exists, confirm that it works
+    x_t, y_t = util.rotate_in_plane((x,y), (0,0), pre_rot)
+    pre = pp_matcher.pre
+    z_p, y_p, x_p = probe.shape
+    if z < 0:
+        column = pre[:z_p+z, y-y_p/2:y+y_p/2, x-x_p/2:x+x_p/2]
+        probe = probe[-z:]
+    else:
+        column = pre[z:z_p+z, y-y_p/2:y+y_p/2, x-x_p/2:x+x_p/2]
+    intersected_vessel_map = probe * column
+    # TODO: analysis of this map
+    

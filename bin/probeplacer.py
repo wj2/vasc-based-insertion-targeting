@@ -144,9 +144,15 @@ class ProbePlacer(object):
             self.info = {'xy_ang':self._p_xy_ang, 'xz_ang':self._p_xz_ang,
                          'yz_ang':self._p_yz_ang, 'x':self._px, 'y':self._py,
                          'offset':self._vert_offset}
-            self.probe = self._rotated_probe
         else:
             print 'missed'
+
+    def get_probe(self, xy=self._p_xy_ang, yz=self._p_yz_ang, 
+                  xz=self._p_xz_ang):
+        p = rotate(self.probe, xz, axes=(2, 0))
+        p = rotate(p, yz, axes=(1, 0))
+        p = rotate(p, xy, axes=(2,1))
+        return np.around(p)
 
     def _on_press(self, event):
         x = event.xdata

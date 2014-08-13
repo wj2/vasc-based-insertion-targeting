@@ -111,7 +111,9 @@ class PrePostMatcher(object):
             self._rotate_stack(-1)
         elif event.key in CLOSE_GUI_FINISHED:
             self._finished = True
-            self.info = {'x':self._x, 'y':self._y, 'xy_ang':self._pre_ang, 
+            x = self._x - self.post.shape[2] / 2
+            y = self._y - self.post.shape[1] / 2
+            self.info = {'x':x, 'y':y, 'xy_ang':self._pre_ang, 
                          'offset':self._offset}
             plt.close()
         elif event.key in CLOSE_GUI_END:
