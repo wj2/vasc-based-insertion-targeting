@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gspec
 import tiff.tifffile as tiff
-import SWC    
+import swc    
 
 class MPLviewer:
 
