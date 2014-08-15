@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as color
 from scipy.ndimage import rotate
+from scipy.misc import imrotate
 import tiff.tifffile as tiff
 
 import util
@@ -30,9 +31,19 @@ def make_redscale_cm():
 
 class PrePostMatcher(object):
 
-    def __init__(self, pre, post, collapse=1, start_index=0):
-        self.pre = util.collapse_stack(tiff.imread(pre), collapse)
-        self.post = util.collapse_stack(tiff.imread(post), collapse)
+    def __init__(self, prepath=None, pre=None, postpath=None, post=None, 
+                 collapse=1, start_index=0):
+        if prepath is None and pre is None:
+            raise IOError('one of pre or prepath is required')
+        elif pre is None:
+            pre = tiff.imread(prepath)
+        if postpath is None and post is None:
+            raise IOError('one of post or postpath is required')
+        elif post is None:
+            post = tiff.imread(postpath)
+
+        self.pre = util.collapse_stack(pre, collapse)
+        self.post = util.collapse_stack(post, collapse)
         self._ci = start_index
         self._max_i = self.post.shape[0] - 1
         self._offset = 0
@@ -105,9 +116,9 @@ class PrePostMatcher(object):
             self._adjust_depth(-1)
         elif event.key in DOWN_STACK:
             self._adjust_depth(1)
-        elif event.key in ROTATE_XY_CW:
-            self._rotate_stack(1)
         elif event.key in ROTATE_XY_CCW:
+            self._rotate_stack(1)
+        elif event.key in ROTATE_XY_CW:
             self._rotate_stack(-1)
         elif event.key in CLOSE_GUI_FINISHED:
             self._finished = True
@@ -115,9 +126,11 @@ class PrePostMatcher(object):
             y = self._y - self.post.shape[1] / 2
             self.info = {'x':x, 'y':y, 'xy_ang':self._pre_ang, 
                          'offset':self._offset}
+            plt.ioff()
             plt.close()
         elif event.key in CLOSE_GUI_END:
             self._finished = False
+            plt.ioff()
             plt.close()
 
     def _on_press(self, event):
@@ -140,12 +153,11 @@ class PrePostMatcher(object):
             self._update_view()
 
     def _update_view(self):
-        self._postim.set_data(self.post[self._ci])
-        self._preim.set_data(self._pre_rot[self._ci + self._offset])
         self._preim.set_extent(self._coord_to_extent(self._x, self._y, 
                                                      self.pre))
-        
+        self._preim.set_data(self._pre_rot[self._ci + self._offset])
         self._im_ax.set_xlim(0, self.post.shape[2])
         self._im_ax.set_ylim(self.post.shape[1], 0)
+        self._postim.set_data(self.post[self._ci])
         plt.draw()
     

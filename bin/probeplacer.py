@@ -24,16 +24,21 @@ def make_red_alpha_scale_cm():
 
 class ProbePlacer(object):
     
-    def __init__(self, stackpath, probesize, probedepth, collapse=1, ind=0):
-        stack = tiff.imread(stackpath)
+    def __init__(self, probesize, probedepth, mpp, stackpath=None, stack=None, 
+                 collapse=1, ind=0):
+        if stackpath is None and stack is None:
+            raise IOError('one of stackpath or stack is required')
+        elif stack is None:
+            stack = tiff.imread(stackpath)
         self.stack = util.collapse_stack(stack, collapse)
         self.collapse = collapse
         self._max_i = self.stack.shape[0] - 1
         self._ci = ind
         self._maxx = self.stack.shape[2] - 1
         self._maxy = self.stack.shape[1] - 1
-        self.probe = np.ones((probedepth / collapse, probesize[1], 
-                              probesize[0] + 1))
+        self.probe = np.ones((probedepth / collapse, 
+                              np.around(probesize[1]/mpp), 
+                              np.around(probesize[0]/mpp + 1)))
         print self.probe[:, :, -1]
         self.probe[:, :, -1] = 0
         self._rotated_probe = self.probe
@@ -45,7 +50,8 @@ class ProbePlacer(object):
         self._py = self._maxy / 2
         self._selected_probe = False
         self._fig = plt.figure()
-        self._im_ax = self._fig.add_subplot(1,1,1)
+        self._im_ax = self._fig.add_subplot(1,1,1, xscale='linear', 
+                                            yscale='linear')
         self._im = self._im_ax.imshow(self.stack[self._ci], 
                                       interpolation='none',
                                       cmap='gray')
@@ -69,12 +75,12 @@ class ProbePlacer(object):
     def _draw_probe(self):
         self._pim.set_data(self._rotated_probe[self._ci + self._p_vert_offset])
         self._pim.set_extent(self._coord_to_extent(self._px, self._py))
-        self._im_ax.set_xlim(0, self._maxx + 1)
-        self._im_ax.set_ylim(self._maxy + 1, 0)
 
     def _update_view(self):
-        self._draw_probe()
         self._im.set_data(self.stack[self._ci])
+        self._draw_probe()
+        self._im_ax.set_xlim(0, self._maxx)
+        self._im_ax.set_ylim(self._maxy, 0)
         plt.draw()
 
     def _rotate_probe(self, mod, axes):
@@ -143,12 +149,20 @@ class ProbePlacer(object):
         elif event.key in CLOSE_GUI_FINISHED:
             self.info = {'xy_ang':self._p_xy_ang, 'xz_ang':self._p_xz_ang,
                          'yz_ang':self._p_yz_ang, 'x':self._px, 'y':self._py,
-                         'offset':self._vert_offset}
-        else:
-            print 'missed'
+                         'offset':self._p_vert_offset}
+            plt.ioff()
+            plt.close()
+        elif event.key in CLOSE_GUI_END:
+            plt.ioff()
+            plt.close()
 
-    def get_probe(self, xy=self._p_xy_ang, yz=self._p_yz_ang, 
-                  xz=self._p_xz_ang):
+    def get_probe(self, xy=None, yz=None, xz=None):
+        if xy is None:
+            xy = self._p_xy_ang
+        if yz is None:
+            yz = self._p_yz_ang
+        if xz is None:
+            xz = self._p_xz_ang
         p = rotate(self.probe, xz, axes=(2, 0))
         p = rotate(p, yz, axes=(1, 0))
         p = rotate(p, xy, axes=(2,1))

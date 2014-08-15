@@ -16,3 +16,6 @@ ROTATE_YZ_CW = ('y')
 
 ROTATE_XY_CCW = ('q',)
 ROTATE_XY_CW = ('w',)
+
+CLOSE_GUI_END = ('escape',)
+CLOSE_GUI_FINISHED = ('enter',)

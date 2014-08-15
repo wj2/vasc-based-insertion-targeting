@@ -1,8 +1,12 @@
-#!/usr/local/bin
+#!/usr/local/bin/python
 
+import os
+import warnings
 import numpy as np
 
 from bin import parser
+from bin import util 
+from bin.tiff import tifffile as tiff
 from bin.prepostmatcher import PrePostMatcher
 from bin.probeplacer import ProbePlacer
 from bin.swc import SWC
@@ -10,19 +14,37 @@ from bin.swc import SWC
 if __name__ == '__main__':
     p = parser.damage_quant_parser()
     args = p.parse_args()
-    probe_placer = ProbePlacer()
-    pp_matcher = PrePostMatcher()
-
+    if args.debug:
+        import matplotlib.pyplot as plt
+    probe_size = (args.probe_length, args.probe_width)
+    mpp = args.microns_per_pixel
+    probe_placer = ProbePlacer(probe_size, args.probe_depth, mpp, 
+                               stackpath=args.post)
+    if not hasattr(probe_placer, 'info'):
+        raise Exception('placement for probe not selected, terminating '
+                        'execution')
+    pp_matcher = PrePostMatcher(post=probe_placer.stack, prepath=args.pre)
+    if not hasattr(pp_matcher, 'info'):
+        raise Exception('pre and post stacks not registered, terminating '
+                        'execution')
+    seg_id_stack = tiff.imread(args.segments)
     # reconcile coordinates
     pplace_info = probe_placer.info
     pp_match_info = pp_matcher.info
     # extract probe column
     pre_rot = pp_match_info['xy_ang']
     x_off, y_off = pp_match_info['x'], pp_match_info['y']
-    xy_adj = pre_rot - pplace_info['xy_ang']
+    xy_adj = pre_rot + pplace_info['xy_ang']
+    print 'debug out'
+    print pre_rot, pplace_info['xy_ang']
+    print xy_adj
     probe = probe_placer.get_probe(xy=xy_adj)
+    print probe.max(), probe.min()
     # find x,y in rotated pre
-    x, y = pplace_info['x'] + x_off, pplace_info['y'] + y_off
+    print pplace_info['x'], pplace_info['y']
+    print x_off, y_off
+    x, y = pplace_info['x'] - x_off, pplace_info['y'] - y_off
+    print x, y
     # find z-offset from pre
     z = pplace_info['offset'] - pp_match_info['offset']
     # TODO: find x,y in original orientation of pre (no rotation), account for
@@ -31,11 +53,58 @@ if __name__ == '__main__':
     x_t, y_t = util.rotate_in_plane((x,y), (0,0), pre_rot)
     pre = pp_matcher.pre
     z_p, y_p, x_p = probe.shape
-    if z < 0:
-        column = pre[:z_p+z, y-y_p/2:y+y_p/2, x-x_p/2:x+x_p/2]
-        probe = probe[-z:]
+    z_end = min(z_p+z, pre.shape[0])
+
+    if x-x_p/2. >= 0:
+        x_b = x-x_p/2.
+        px_b = 0
     else:
-        column = pre[z:z_p+z, y-y_p/2:y+y_p/2, x-x_p/2:x+x_p/2]
-    intersected_vessel_map = probe * column
+        x_b = 0
+        warnings.warn('probe truncated on left side', RuntimeWarning)
+        px_b = - x-x_p/2.
+    if x+x_p/2. <= pre.shape[2]:
+        x_e = x+x_p/2.
+        px_e = x_p
+    else:
+        x_e = pre.shape[2]
+        warnings.warn('probe truncated on right side', RuntimeWarning)
+        px_e = - (x+x_p/2. - pre.shape[2])
+    if y-y_p/2. >= 0:
+        y_b = y-y_p/2.
+        py_b = 0
+    else:
+        y_b = 0
+        warnings.warn('probe truncated on high side', RuntimeWarning)
+        py_b = - y-y_p/2. 
+    if y+y_p/2. <= pre.shape[1]:
+        y_e = y+y_p/2.
+        py_e = y_p
+    else:
+        y_e = pre.shape[1]
+        warnings.warn('probe truncated on low side', RuntimeWarning)
+        y_e = - (y+y_p/2. - pre.shape[1])
+    if z < 0:
+        column_pre = pre[:z_end, y_b:y_e, x_b:x_e]
+        column_segid = seg_id_stack[:z_end, y_b:y_e, x_b:x_e]
+        probe = probe[-z:z_end-z]
+    else:
+        column_pre = pre[z:z_end, y_b:y_e, x_b:x_e]
+        column_segid = seg_id_stack[z:z_end, y_b:y_e, x_b:x_e]
+        probe = probe[z:z_end]
+    print x_p, y_p
+    print x-x_p/2, x+x_p/2
+    print y-y_p/2, y+y_p/2
+    intersect_lum = probe * column_pre
+    intersect_vess = probe * column_segid
+    print 'segments hit : ',set(intersect_vess.flatten()).difference(set([0]))
+    if args.debug:
+        f1 = plt.figure()
+        f1_ax = f1.add_subplot(1,1,1)
+        f1_ax.imshow (column[0])
+        f2 = plt.figure()
+        f2_ax = f2.add_subplot(1,1,1)
+        f2_ax.imshow(intersected_vessel_map[0])
+        plt.draw()
+        plt.show()
     # TODO: analysis of this map
     
