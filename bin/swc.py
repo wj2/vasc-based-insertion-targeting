@@ -1,9 +1,11 @@
 
 import numpy as np
 import itertools
+import random
 import matplotlib.pyplot as plt
 from os.path import splitext
 from compare import angle_between
+import tiff.tifffile as tiff
 
 """
 Classes: SWC, SuperSegment, Segment, Piece, Vertex
@@ -161,6 +163,17 @@ class SuperSegment(object):
                 new_edges.append((v, v_seg[-1].ident))                
             else:
                 new_v = v_seg.split(p_id=pid)
+                if new_v[-1].vertex is not None:
+                    try:
+                        up_v = self._vertices[new_v[-1].vertex]
+                    except KeyError:
+                        if (v_seg.ident, new_v[-1].ident) in edges:
+                            edges = [x for x in edges 
+                                     if x[1] != new_v[-1].ident]
+                            edges.append((new_v.ident, new_v[-1].ident))
+                    else:
+                        up_v.update_edge((new_v.ident, pid), 
+                                         (v, new_v[-1].ident))
                 self.add_segment(new_v)
                 new_edges.extend([(v, pid), (new_v.ident, pid)])
                 # we've also got to update the segment map
@@ -185,10 +198,12 @@ class SuperSegment(object):
         v = Vertex(e.x, e.y, e.z, e.rad, [(e.seg, e.ident)])
         e.vertex = v.ident
         old_deg = 0
+        print 'current v ',v.ident
         while v.degree > old_deg:
             old_deg = v.degree
             es, seg, pie = self._find_edges(v.x, v.y, v.z, seg, pie, v.edges)
             v.add_edges(es, self)
+        print e.x, e.y, e.z, ' -> ', v.x, v.y, v.z
         return v, seg, pie
 
     def vertexify(self, seg_arr=None, pie_arr=None):
@@ -222,6 +237,33 @@ class SuperSegment(object):
                     edge[-1].vertex = None
             if v.degree == 0:
                 del self.vertices[k]
+
+    def verify_vertices(self, img=None, imgpath=None, n=10, deg=0, window=20):
+        if img is None and imgpath is None:
+            raise IOError('one of img or imgpath is required')
+        elif img is None:
+            img = tiff.imread(imgpath)
+        if deg > 0:
+            vs = filter(lambda x: x.degree > deg, self._vertices.values())
+        else:
+            vs = self._vertices.values()
+        vs_look = random.sample(vs, n)
+        for v in vs_look:
+            fig = plt.figure()
+            im_xyax = fig.add_subplot(2,1,1)
+            im_hax = fig.add_subplot(2,1,2)
+            x, y, z = v.xyz
+            im = img[max(z-window/2, 0):z+window/2, y-window:y+window,
+                     x-window:x+window]
+            print im.shape, x, y, z
+            im_xy = im.max(axis=0)
+            im_h = im.max(axis=1)
+            im_xyax.imshow(im_xy)
+            im_hax.imshow(im_h)
+            fig.suptitle('degree '+str(v.degree)+'; '+str(v.id)+':'
+                         +str(v.edges))
+        plt.show()
+        
             
     @property
     def vertices(self):
@@ -493,7 +535,7 @@ class Segment(object):
                             'both or neither')
         new_seg = Segment(self.mpp, pieces=self._pieces[i_of:])
         self._pieces = self._pieces[:i_of+1]
-        self._num_pieces = len(self._pieces)
+        self._num_pieces = len(self._pieces) 
         return new_seg
     
     def array_rep(self, seg_arr=None, pie_arr=None):
@@ -620,6 +662,10 @@ class Vertex(object):
         e1.vertex = self.ident
         v = cls(e1.x, e1.y, e1.z, e1.rad, edges[0])
         return v.add_edges(edges[1:], swc)
+
+    def update_edge(self, new_edge, old_edge):
+            i = self.edges.index(old_edge)
+            self.edges[i] = new_edge
 
     def add_edge_bypiece(self, piece):
         piece.vertex = self.ident

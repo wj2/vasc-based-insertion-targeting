@@ -47,6 +47,7 @@ if __name__ == '__main__':
     print x, y
     # find z-offset from pre
     z = pplace_info['offset'] - pp_match_info['offset']
+    print 'z stuff ',z, pplace_info['offset'], pp_match_info['offset']
     # TODO: find x,y in original orientation of pre (no rotation), account for
     # change to the orientation of probe given that transformation
     # TODO: the above exists, confirm that it works
@@ -54,7 +55,7 @@ if __name__ == '__main__':
     pre = pp_matcher.pre
     z_p, y_p, x_p = probe.shape
     z_end = min(z_p+z, pre.shape[0])
-
+    print 'more z ',z_p, z_end, pre.shape[0]
     if x-x_p/2. >= 0:
         x_b = x-x_p/2.
         px_b = 0
@@ -82,15 +83,15 @@ if __name__ == '__main__':
     else:
         y_e = pre.shape[1]
         warnings.warn('probe truncated on low side', RuntimeWarning)
-        y_e = - (y+y_p/2. - pre.shape[1])
+        py_e = - (y+y_p/2. - pre.shape[1])
     if z < 0:
         column_pre = pre[:z_end, y_b:y_e, x_b:x_e]
         column_segid = seg_id_stack[:z_end, y_b:y_e, x_b:x_e]
-        probe = probe[-z:z_end-z]
+        probe = probe[-z:z_end-z, py_b:py_e, px_b:px_e]
     else:
         column_pre = pre[z:z_end, y_b:y_e, x_b:x_e]
         column_segid = seg_id_stack[z:z_end, y_b:y_e, x_b:x_e]
-        probe = probe[z:z_end]
+        probe = probe[:z_end, py_b:py_e, px_b:px_e]
     print x_p, y_p
     print x-x_p/2, x+x_p/2
     print y-y_p/2, y+y_p/2
