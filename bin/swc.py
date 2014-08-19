@@ -162,20 +162,28 @@ class SuperSegment(object):
             elif v_seg[-1].ident in ps:
                 new_edges.append((v, v_seg[-1].ident))                
             else:
+                print v_seg[-1].ident
+                print v_seg
                 new_v = v_seg.split(p_id=pid)
+                print v_seg
+                print new_v
                 if new_v[-1].vertex is not None:
                     try:
+                        print new_v[-1].vertex, new_v[-1].ident, new_v.ident
+                        print v_seg.ident
                         up_v = self._vertices[new_v[-1].vertex]
                     except KeyError:
+                        print 'try'
                         if (v_seg.ident, new_v[-1].ident) in edges:
-                            edges = [x for x in edges 
-                                     if x[1] != new_v[-1].ident]
-                            edges.append((new_v.ident, new_v[-1].ident))
+                            e_i = edges.index((v_seg.ident, new_v[-1].ident))
+                            edges[e_i] = (new_v.ident, new_v[-1].ident)
+                            print 'done'
                     else:
-                        up_v.update_edge((new_v.ident, pid), 
-                                         (v, new_v[-1].ident))
+                        up_v.update_edge((new_v.ident, new_v[-1].ident), 
+                                         (v_seg.ident, new_v[-1].ident))
                 self.add_segment(new_v)
-                new_edges.extend([(v, pid), (new_v.ident, pid)])
+                new_edges.extend([(v_seg.ident, v_seg[-1].ident), 
+                                  (new_v.ident, new_v[0].ident)])
                 # we've also got to update the segment map
                 nvcs = np.around(new_v.xyzs).astype(int)
                 old_ls = seg[nvcs[:, 2], nvcs[:, 1], nvcs[:, 0]]
@@ -194,7 +202,6 @@ class SuperSegment(object):
         return new_edges, seg, pie
 
     def _seed_edge_search(self, e, seg, pie, radius=5):
-        # TODO: Check travel, don't want to travel too much
         v = Vertex(e.x, e.y, e.z, e.rad, [(e.seg, e.ident)])
         e.vertex = v.ident
         old_deg = 0
@@ -533,8 +540,9 @@ class Segment(object):
         else:
             raise Exception('split takes either piece_id or piece_num, not '
                             'both or neither')
+        print len(self), i_of
         new_seg = Segment(self.mpp, pieces=self._pieces[i_of:])
-        self._pieces = self._pieces[:i_of+1]
+        self._pieces = self._pieces[:i_of]
         self._num_pieces = len(self._pieces) 
         return new_seg
     
