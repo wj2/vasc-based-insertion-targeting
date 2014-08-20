@@ -162,22 +162,14 @@ class SuperSegment(object):
             elif v_seg[-1].ident in ps:
                 new_edges.append((v, v_seg[-1].ident))                
             else:
-                print v_seg[-1].ident
-                print v_seg
                 new_v = v_seg.split(p_id=pid)
-                print v_seg
-                print new_v
                 if new_v[-1].vertex is not None:
                     try:
-                        print new_v[-1].vertex, new_v[-1].ident, new_v.ident
-                        print v_seg.ident
                         up_v = self._vertices[new_v[-1].vertex]
                     except KeyError:
-                        print 'try'
                         if (v_seg.ident, new_v[-1].ident) in edges:
                             e_i = edges.index((v_seg.ident, new_v[-1].ident))
                             edges[e_i] = (new_v.ident, new_v[-1].ident)
-                            print 'done'
                     else:
                         up_v.update_edge((new_v.ident, new_v[-1].ident), 
                                          (v_seg.ident, new_v[-1].ident))
@@ -205,12 +197,10 @@ class SuperSegment(object):
         v = Vertex(e.x, e.y, e.z, e.rad, [(e.seg, e.ident)])
         e.vertex = v.ident
         old_deg = 0
-        print 'current v ',v.ident
         while v.degree > old_deg:
             old_deg = v.degree
             es, seg, pie = self._find_edges(v.x, v.y, v.z, seg, pie, v.edges)
             v.add_edges(es, self)
-        print e.x, e.y, e.z, ' -> ', v.x, v.y, v.z
         return v, seg, pie
 
     def vertexify(self, seg_arr=None, pie_arr=None):
@@ -262,7 +252,6 @@ class SuperSegment(object):
             x, y, z = v.xyz
             im = img[max(z-window/2, 0):z+window/2, y-window:y+window,
                      x-window:x+window]
-            print im.shape, x, y, z
             im_xy = im.max(axis=0)
             im_h = im.max(axis=1)
             im_xyax.imshow(im_xy)
@@ -540,7 +529,6 @@ class Segment(object):
         else:
             raise Exception('split takes either piece_id or piece_num, not '
                             'both or neither')
-        print len(self), i_of
         new_seg = Segment(self.mpp, pieces=self._pieces[i_of:])
         self._pieces = self._pieces[:i_of]
         self._num_pieces = len(self._pieces) 

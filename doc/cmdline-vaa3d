@@ -1,0 +1,35 @@
+
+cmd line usage of vaa3d plugins relevant to this project
+
+swc2maskBRL-pieceid
+
+vaa3d -x /local1/vaa3d/v3d_external/bin/plugins/neuron_utilities/swc_to_maskimage_BRL-pieceid/libswc2maskBRL-pieceid.so -f swc2maskBRL-pieceid -i <eswc path>
+
+
+swc2maskBRL (mapping unique segment ids)
+
+vaa3d -x /local1/vaa3d/v3d_external/bin/plugins/neuron_utilities/swc_to_maskimage_BRL/libswc2maskBRL.so -f swc2maskBRL -i <eswc path>
+
+
+swc2mask_cylinder_unit
+
+vaa3d -x /local1/vaa3d/v3d_external/bin/plugins/neuron_utilities/swc_to_maskimage_cylinder_unit/libswc2mask.so -f swc2mask -i <swc path>
+
+snaketracing
+
+vaa3d -x /local1/vaa3d/v3d_external/bin/plugins/neuron_tracing/snake_tracing/libsnaketracing.so -f snake_trace -i <img path>
+
+
+radius fill
+
+
+
+gaussian filter
+
+vaa3d -x gaussian -f gf -i <img path> -o <output path> -p 5 5 5 1 2
+
+
+distance transform
+
+vaa3d -x gsdt -f gsdt -i <img path> -p .5 1 0 1
+
