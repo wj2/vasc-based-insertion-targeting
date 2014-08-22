@@ -133,17 +133,20 @@ class SuperSegment(object):
             seg_arr, pie_arr = segment.array_rep(seg_arr, pie_arr)
         return seg_arr, pie_arr
 
-    def _find_edges(self, x, y, z, seg, pie, edges, radius=5): 
+    def _find_edges(self, x, y, z, seg, pie, edges, radius=5, from_end=20, 
+                    loop_len=10): 
         already_segs = set([e[0] for e in edges])
         assert len(already_segs) == len(edges)
+        assert loop_len < from_end
         x, y, z = np.around(x), np.around(y), np.around(z)
         seg_sect = seg[z-radius:z+radius+1, y-radius:y+radius+1, 
                        x-radius:x+radius+1]
         pie_sect = pie[z-radius:z+radius+1, y-radius:y+radius+1, 
                        x-radius:x+radius+1]
-        vs = itertools.chain.from_iterable(seg_sect[seg_sect != 0])
-        ps = itertools.chain.from_iterable(pie_sect[pie_sect != 0])
-        vess = set(vs).difference(already_segs)
+        vs = list(itertools.chain.from_iterable(seg_sect[seg_sect != 0]))
+        ps = list(itertools.chain.from_iterable(pie_sect[pie_sect != 0]))
+        vess = set(vs)
+        vess = vess.difference(already_segs)
         new_edges = []
         for v in vess:
             # find piece closest to x,y,z
@@ -155,21 +158,33 @@ class SuperSegment(object):
             ind = seg_sect[c[0], c[1], c[2]].index(v)
             pid = pie_sect[c[0], c[1], c[2]][ind]
             v_seg = self.segment_id(v)
-            if pid in (v_seg[0].ident, v_seg[-1].ident):
+            if (v_seg[0].ident in ps and v_seg[-1].ident in ps and 
+                v_seg[0].vertex is None and v_seg[-1].vertex is None):
+                if len(v_seg) < loop_len:
+                    v_seg[0].vertex = -1
+                    v_seg[-1].vertex = -1
+                else:
+                    new_edges.extend([(v, v_seg[0].ident), 
+                                      (v, v_seg[-1].ident)])
+            elif pid == v_seg[0].ident and v_seg[0].vertex is None:
                 new_edges.append((v, pid))
-            elif v_seg[0].ident in ps:
+            elif pid == v_seg[-1].ident and v_seg[-1].ident is None:
+                new_edges.append((v, pid))
+            elif v_seg[0].ident in ps and v_seg[0].vertex is None:
                 new_edges.append((v, v_seg[0].ident))
-            elif v_seg[-1].ident in ps:
+            elif v_seg[-1].ident in ps and v_seg[-1].vertex is None:
                 new_edges.append((v, v_seg[-1].ident))                
-            else:
+            elif (pid not in map(lambda x: x.ident, v_seg[:from_end]) and 
+                  pid not in map(lambda x: x.ident, v_seg[-from_end-1:])):
                 new_v = v_seg.split(p_id=pid)
                 if new_v[-1].vertex is not None:
                     try:
                         up_v = self._vertices[new_v[-1].vertex]
                     except KeyError:
-                        if (v_seg.ident, new_v[-1].ident) in edges:
-                            e_i = edges.index((v_seg.ident, new_v[-1].ident))
-                            edges[e_i] = (new_v.ident, new_v[-1].ident)
+                        print 'keyerror'
+                        # if (v_seg.ident, new_v[-1].ident) in edges:
+                        e_i = edges.index((v_seg.ident, new_v[-1].ident))
+                        edges[e_i] = (new_v.ident, new_v[-1].ident)
                     else:
                         up_v.update_edge((new_v.ident, new_v[-1].ident), 
                                          (v_seg.ident, new_v[-1].ident))
@@ -185,9 +200,9 @@ class SuperSegment(object):
                     # the indexing
                     ind_p = old_ps[i].index(new_v[i].ident)
                     l[ind_p] = new_v.ident
-                first = np.around(new_v[0].xyz)
-                seg[first[2], first[1], first[0]].append(new_v.ident) 
-                pie[first[2], first[1], first[0]].append(new_v[0].ident)
+                # first = np.around(new_v[0].xyz)
+                # seg[first[2], first[1], first[0]].append(new_v.ident) 
+                # pie[first[2], first[1], first[0]].append(new_v[0].ident)
                 # this creates duplication that confuses the above comment
                 # issue
                 
@@ -195,12 +210,17 @@ class SuperSegment(object):
 
     def _seed_edge_search(self, e, seg, pie, radius=5):
         v = Vertex(e.x, e.y, e.z, e.rad, [(e.seg, e.ident)])
+        # SEG/IDENT not reflect splittings
         e.vertex = v.ident
         old_deg = 0
+        count = 0
+        all_es = []
         while v.degree > old_deg:
             old_deg = v.degree
-            es, seg, pie = self._find_edges(v.x, v.y, v.z, seg, pie, v.edges)
-            v.add_edges(es, self)
+            es, seg, pie = self._find_edges(v.x, v.y, v.z, seg, pie, 
+                                            v.edges+all_es)
+            all_es.extend(es)
+        v.add_edges(all_es, self)
         return v, seg, pie
 
     def vertexify(self, seg_arr=None, pie_arr=None):
@@ -235,7 +255,8 @@ class SuperSegment(object):
             if v.degree == 0:
                 del self.vertices[k]
 
-    def verify_vertices(self, img=None, imgpath=None, n=10, deg=0, window=20):
+    def verify_vertices(self, img=None, imgpath=None, n=10, deg=0, window=20,
+                        tail=10):
         if img is None and imgpath is None:
             raise IOError('one of img or imgpath is required')
         elif img is None:
@@ -246,20 +267,72 @@ class SuperSegment(object):
             vs = self._vertices.values()
         vs_look = random.sample(vs, n)
         for v in vs_look:
-            fig = plt.figure()
-            im_xyax = fig.add_subplot(2,1,1)
-            im_hax = fig.add_subplot(2,1,2)
             x, y, z = v.xyz
-            im = img[max(z-window/2, 0):z+window/2, y-window:y+window,
+            img_min = img.min()
+            img_max = img.max()
+            im = img[max(z-window, 0):z+window, y-window:y+window,
                      x-window:x+window]
-            im_xy = im.max(axis=0)
-            im_h = im.max(axis=1)
-            im_xyax.imshow(im_xy)
-            im_hax.imshow(im_h)
-            fig.suptitle('degree '+str(v.degree)+'; '+str(v.id)+':'
-                         +str(v.edges))
+            if 0 not in im.shape:
+                fig = plt.figure(figsize=(4,10))
+                im_xyax = fig.add_subplot(3,1,1)
+                im_h1ax = fig.add_subplot(3,1,2)
+                im_h2ax = fig.add_subplot(3,1,3)
+                im_xy = im.mean(axis=0)
+                im_h1 = im.mean(axis=1)
+                im_h2 = im.mean(axis=2)
+                im_xyax.imshow(im_xy, vmin=img_min, vmax=img_max)
+                im_h1ax.imshow(im_h1, vmin=img_min, vmax=img_max)
+                im_h2ax.imshow(im_h2, vmin=img_min, vmax=img_max)
+                print 'v',x, y, z, v.ident
+                for e in v.edges:
+                    s = self.segment_id(e[0])
+                    p = s.piece_id(e[1])
+                    xp, yp, zp = p.xyz
+                    print 'e1',xp, yp, zp, e
+                    xp, yp, zp = (xp - (x - window), yp - (y - window), 
+                                  zp - (z - window))
+                    print 'e2',xp, yp, zp
+                    if p.ident == s[0].ident:
+                        ps = s[1:1+tail]
+                    elif p.ident == s[-1].ident:
+                        ps = s[-tail-1:-1]
+                    pxyzs = []
+                    for piece in ps:
+                        xps, yps, zps = piece.xyz
+                        pxyz = (xps - (x - window), yps - (y - window), 
+                                zps - (z - window))
+                        pxyzs.append(pxyz)
+                    pxyzs = np.array(pxyzs)
+                    im_xyax.plot(pxyzs[:,0], pxyzs[:,1], 'bo')
+                    im_h1ax.plot(pxyzs[:,0], pxyzs[:,2], 'bo')
+                    im_h2ax.plot(pxyzs[:,1], pxyzs[:,2], 'bo')
+                    im_xyax.plot(xp, yp, 'go')
+                    im_h1ax.plot(xp, zp, 'go')
+                    im_h2ax.plot(yp, zp, 'go')
+                im_xyax.plot(window, window, 'ro')
+                im_h1ax.plot(window, window, 'ro')
+                im_h2ax.plot(window, window, 'ro')
+                fig.suptitle('degree '+str(v.degree)+'; '+str(v.ident)+':'
+                             +str(v.edges))
         plt.show()
         
+    def check_graph_soundness(self):
+        edge_errors = []
+        seg_errors = []
+        dup_errors = []
+        for v in self.vertices.values():
+            for e in v.edges:
+                try:
+                    p = self.segment_id(e[0]).piece_id(e[1])
+                except Exception:
+                    seg_errors.append(e)
+                else:
+                    if p.vertex != v.ident:
+                        edge_errors.append((v, e, p.vertex, v.ident))
+                        if e in self.vertices[p.vertex].edges:
+                            dup_errors.append((e, self.vertices[p.vertex], v))
+                
+        return edge_errors, seg_errors, dup_errors
             
     @property
     def vertices(self):
@@ -400,6 +473,8 @@ class Segment(object):
             self._num_pieces = 0
         else:
             self._pieces = np.array(pieces)
+            for p in self._pieces:
+                p.seg = self.ident
             self._num_pieces = len(pieces)
 
     def __repr__(self):
@@ -686,8 +761,14 @@ class Vertex(object):
                 p = swc[e[0] - 1].piece_id(e[1])
             else:
                 p = swc.segment_id(e[0]).piece_id(e[1])
+            if p.vertex is not None:
+                print 'whoops'
             p.vertex = self.ident
             self.add_edge(p.x, p.y, p.z, p.rad, e)
+
+    def __repr__(self):
+        return ('<'+str(self.ident)+':'+str(self.xyz)+'|'
+                +str(self.degree)+':'+str(self.edges)+'>')
 
     @property
     def xyz(self):
