@@ -22,6 +22,18 @@ def make_red_alpha_scale_cm():
                                                   redalphadict)
     return redalphascale    
 
+def create_probe(size, depth, xy=0, yz=0, xz=0, buff=0):
+    probe = np.ones((depth+buff, size[0]+buff, size[1]+buff+1))
+    probe[:, :, -1] = 0
+    probe = rotate_probe(probe, xy, yz, xz)
+    return probe
+
+def rotate_probe(p, xy, yz, xz):
+    p = rotate(p, xz, axes=(2, 0))
+    p = rotate(p, yz, axes=(1, 0))
+    p = rotate(p, xy, axes=(2,1))
+    return np.around(p)
+
 class ProbePlacer(object):
     
     def __init__(self, probesize, probedepth, mpp, stackpath=None, stack=None, 
@@ -37,8 +49,8 @@ class ProbePlacer(object):
         self._maxx = self.stack.shape[2] - 1
         self._maxy = self.stack.shape[1] - 1
         self.probe = np.ones((probedepth / collapse, 
-                              np.around(probesize[1]/mpp), 
-                              np.around(probesize[0]/mpp + 1)))
+                              np.around(probesize[0]/mpp), 
+                              np.around(probesize[1]/mpp + 1)))
         print self.probe[:, :, -1]
         self.probe[:, :, -1] = 0
         self._rotated_probe = self.probe
@@ -156,13 +168,32 @@ class ProbePlacer(object):
             plt.ioff()
             plt.close()
 
-    def get_probe(self, xy=None, yz=None, xz=None):
+    def get_probe(self, xy=None, yz=None, xz=None, buff=0):
         if xy is None:
             xy = self._p_xy_ang
         if yz is None:
             yz = self._p_yz_ang
         if xz is None:
             xz = self._p_xz_ang
+        if buff > 0:
+            p = create_probe(self.probe.shape[1:], self.probe.shape[0],
+                             xy, yz, xz, buff)
+        else:
+            p = rotate_probe(self.probe, xy, yz, xz)
+        return p
+
+    def get_probe_old(self, xy=None, yz=None, xz=None, buff=0):
+        if xy is None:
+            xy = self._p_xy_ang
+        if yz is None:
+            yz = self._p_yz_ang
+        if xz is None:
+            xz = self._p_xz_ang
+        if buff > 0:
+            self.probe = np.ones((self.probe.shape[0]+buff, 
+                                  self.probe.shape[1]+buff,
+                                  self.probe.shape[2]+buff+1))
+            self.probe = self.probe[:, :, -1] = 0
         p = rotate(self.probe, xz, axes=(2, 0))
         p = rotate(p, yz, axes=(1, 0))
         p = rotate(p, xy, axes=(2,1))

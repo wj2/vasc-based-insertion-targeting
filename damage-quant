@@ -3,31 +3,26 @@
 import os
 import warnings
 import numpy as np
+import cPickle as p
+from scipy.ndimage import gaussian_filter
+import parser
+from vasc import util 
+from vasc import characterize
+from vasc.tiff import tifffile as tiff
+from vasc.prepostmatcher import PrePostMatcher
+from vasc.probeplacer import ProbePlacer, create_probe
+from vasc.swc import SWC
 
-from bin import parser
-from bin import util 
-from bin.tiff import tifffile as tiff
-from bin.prepostmatcher import PrePostMatcher
-from bin.probeplacer import ProbePlacer
-from bin.swc import SWC
-
-if __name__ == '__main__':
-    p = parser.damage_quant_parser()
-    args = p.parse_args()
-    if args.debug:
-        import matplotlib.pyplot as plt
-    probe_size = (args.probe_length, args.probe_width)
-    mpp = args.microns_per_pixel
-    probe_placer = ProbePlacer(probe_size, args.probe_depth, mpp, 
-                               stackpath=args.post)
+def place_and_register(pre, post, args, mpp, psize):
+    probe_placer = ProbePlacer(psize, args.probe_depth, mpp, 
+                               stack=post)
     if not hasattr(probe_placer, 'info'):
         raise Exception('placement for probe not selected, terminating '
                         'execution')
-    pp_matcher = PrePostMatcher(post=probe_placer.stack, prepath=args.pre)
+    pp_matcher = PrePostMatcher(post=post, pre=pre)
     if not hasattr(pp_matcher, 'info'):
         raise Exception('pre and post stacks not registered, terminating '
                         'execution')
-    seg_id_stack = tiff.imread(args.segments)
     # reconcile coordinates
     pplace_info = probe_placer.info
     pp_match_info = pp_matcher.info
@@ -35,77 +30,106 @@ if __name__ == '__main__':
     pre_rot = pp_match_info['xy_ang']
     x_off, y_off = pp_match_info['x'], pp_match_info['y']
     xy_adj = pre_rot + pplace_info['xy_ang']
-    print 'debug out'
-    print pre_rot, pplace_info['xy_ang']
-    print xy_adj
     probe = probe_placer.get_probe(xy=xy_adj)
-    print probe.max(), probe.min()
     # find x,y in rotated pre
-    print pplace_info['x'], pplace_info['y']
-    print x_off, y_off
     x, y = pplace_info['x'] - x_off, pplace_info['y'] - y_off
-    print x, y
     # find z-offset from pre
     z = pplace_info['offset'] - pp_match_info['offset']
-    print 'z stuff ',z, pplace_info['offset'], pp_match_info['offset']
-    # TODO: find x,y in original orientation of pre (no rotation), account for
-    # change to the orientation of probe given that transformation
-    # TODO: the above exists, confirm that it works
-    x_t, y_t = util.rotate_in_plane((x,y), (0,0), pre_rot)
-    pre = pp_matcher.pre
-    z_p, y_p, x_p = probe.shape
-    z_end = min(z_p+z, pre.shape[0])
-    print 'more z ',z_p, z_end, pre.shape[0]
-    if x-x_p/2. >= 0:
-        x_b = x-x_p/2.
-        px_b = 0
+    x, y = util.rotate_in_plane((x,y), (0,0), pre_rot)
+
+    return x, y, z, xy_adj, pplace_info['yz_ang'], pplace_info['xz_ang']
+
+def decide_dim(d, d_p, constraint, side1, side2):
+    if d - d_p/2. >= 0:
+        d_b = d - d_p/2.
+        pd_b = 0
     else:
-        x_b = 0
-        warnings.warn('probe truncated on left side', RuntimeWarning)
-        px_b = - x-x_p/2.
-    if x+x_p/2. <= pre.shape[2]:
-        x_e = x+x_p/2.
-        px_e = x_p
+        d_b = 0
+        warnings.warn('probe truncated on '+side1+' side', RuntimeWarning)
+        pd_b = - d-d_p/2.
+    if d + d_p/2. <= constraint:
+        d_e = d + d_p/2.
+        pd_e = d_p
     else:
-        x_e = pre.shape[2]
-        warnings.warn('probe truncated on right side', RuntimeWarning)
-        px_e = - (x+x_p/2. - pre.shape[2])
-    if y-y_p/2. >= 0:
-        y_b = y-y_p/2.
-        py_b = 0
-    else:
-        y_b = 0
-        warnings.warn('probe truncated on high side', RuntimeWarning)
-        py_b = - y-y_p/2. 
-    if y+y_p/2. <= pre.shape[1]:
-        y_e = y+y_p/2.
-        py_e = y_p
-    else:
-        y_e = pre.shape[1]
-        warnings.warn('probe truncated on low side', RuntimeWarning)
-        py_e = - (y+y_p/2. - pre.shape[1])
+        d_e = constraint
+        warnings.warn('probe truncated on '+side2+' side', RuntimeWarning)
+        pd_e = - (d + d_p/2. - constraint)
+    return pd_b, pd_e, d_b, d_e
+
+def extract_column(x_b, px_b, x_e, px_e, y_b, py_b, y_e, py_e, z, z_end, probe,
+                   **kwargs):
+    cols = {}
     if z < 0:
-        column_pre = pre[:z_end, y_b:y_e, x_b:x_e]
-        column_segid = seg_id_stack[:z_end, y_b:y_e, x_b:x_e]
-        probe = probe[-z:z_end-z, py_b:py_e, px_b:px_e]
+        probe = probe[-z:z_end-z, py_b:py_e, px_b:px_e]        
+        for key in kwargs.keys():
+            col = kwargs[key][:z_end, y_b:y_e, x_b:x_e]
+            cols[key] = col * probe
+        
     else:
-        column_pre = pre[z:z_end, y_b:y_e, x_b:x_e]
-        column_segid = seg_id_stack[z:z_end, y_b:y_e, x_b:x_e]
         probe = probe[:z_end, py_b:py_e, px_b:px_e]
-    print x_p, y_p
-    print x-x_p/2, x+x_p/2
-    print y-y_p/2, y+y_p/2
-    intersect_lum = probe * column_pre
-    intersect_vess = probe * column_segid
-    print 'segments hit : ',set(intersect_vess.flatten()).difference(set([0]))
-    if args.debug:
-        f1 = plt.figure()
-        f1_ax = f1.add_subplot(1,1,1)
-        f1_ax.imshow (column[0])
-        f2 = plt.figure()
-        f2_ax = f2.add_subplot(1,1,1)
-        f2_ax.imshow(intersected_vessel_map[0])
-        plt.draw()
-        plt.show()
-    # TODO: analysis of this map
-    
+        for key in kwargs.keys():
+            col = kwargs[key][z:z_end, y_b:y_e, x_b:x_e]
+            cols[key] = col * probe
+    return cols, probe    
+
+def create_cachename(args):
+    combname = os.path.abspath(args.pre) + '___' + os.path.abspath(args.post)
+    return combname.replace('/','l').replace('.','-')
+
+def load_img(img_path, saturate=None, gf=False):
+    if os.path.isdir(img_path):
+        pass
+    elif os.path isfile(img_path):
+        img = tiff.imread(img_path)
+    else:
+        raise IOError('img path does not exist or something')
+    if norm and saturate is not None:
+        for layer in img:
+            
+    if gf:
+        img = gaussian_filter(img, 2)
+            
+        
+
+if __name__ == '__main__':
+    p = parser.damage_quant_parser()
+    args = p.parse_args()
+    mpp = args.microns_per_pixel
+    cachename = create_cachename(args)
+    cacheplace = os.path.expanduser('~/.vasctargetcache/')
+    if not os.path.isdir(cacheplace):
+        os.mkdir(cacheplace)
+    used_cache = False
+    pre = load_img(args.pre)
+    if args.look_cache and cachename in os.listdir(cacheplace):
+        x, y, z, xy, yz, xz = p.load(open(cacheplace+cachename, 'rb'))
+        used_cache = True
+    else:
+        post = load_img(args.post) 
+        probe_size = (args.probe_length, args.probe_width)
+        x, y, z, xy, yz, xz = place_and_register(pre, post, args, mpp, 
+                                                 probe_size)
+    if args.cache and not used_cache:
+        p.dump((x, y, z, xy, yz, xz), open(cacheplace+cachename, 'wb'))
+    g_rep = swc.SWC(args.swcpath, microns_perpixel=mpp)
+    g_rep.vertexify()
+    es = g_rep.check_graph_soundness()
+    assert len(es[0]) == 0 and len(es[1]) == 0 and len(es[2]) == 0
+    aoes = {}
+    for b in args.buffers:
+        probe = create_probe(args.probe_depth, probe_size, xy=xy, yz=yz, xz=xz,
+                             buff=b)
+        z_buffed = z + b/2
+        z_p, y_p, x_p = probe.shape
+        z_end = min(z_p + z_buff, pre.shape[0])
+        px_b, px_e, x_b, x_e = decide_dim(x, x_p, pre.shape[2], 'left', 
+                                          'right')
+        py_b, py_e, y_b, y_e = decide_dim(y, y_p, pre.shape[1], 'high', 'low')
+        pre_size = probe.size
+        columns, probe = extract_column(x_b, px_b, x_e, px_e, y_b, py_b, y_e, 
+                                        py_e, z_buff, z_end, probe, 
+                                        sid_map=segment_id_map, 
+                                        pid_map=piece_id_map)
+        percent_included = pre_size / probe_size
+        characteristics = characterize.characterize_insertion(columns, g_rep)
+        aoes[b] = (characteristics, percent_included)

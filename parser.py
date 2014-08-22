@@ -19,4 +19,11 @@ def damage_quant_parser():
                         'micron values (default 1)', default=1.0, type=float)
     parser.add_argument('-d', '--debug', help='print (potentially) helpful '
                         'debug info', action='store_true', default=False)
+    parser.add_argument('-c', '--cache', help='turns off caching of probe '
+                        'location in prestack (on by default)', 
+                        action='store_false', default=True)
+    parser.add_argument('-C', '--look_cache', help='turns off looking in cache'
+                        ' location (on by default)', action='store_false', 
+                        default=True)
+    
     return parser
