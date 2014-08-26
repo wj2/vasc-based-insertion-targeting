@@ -76,19 +76,28 @@ def create_cachename(args):
     combname = os.path.abspath(args.pre) + '___' + os.path.abspath(args.post)
     return combname.replace('/','l').replace('.','-')
 
-def load_img(img_path, saturate=None, gf=False):
+def load_img(img_path, saturate=None, gf=False, bits=8):
     if os.path.isdir(img_path):
         pass
     elif os.path isfile(img_path):
         img = tiff.imread(img_path)
     else:
         raise IOError('img path does not exist or something')
-    if norm and saturate is not None:
-        for layer in img:
-            
+    for layer in img:
+        if saturate is not None:
+            lmax = np.around(np.percentile(layer, 100 - saturate))
+            layer[layer >= lmax] = lmax
+        else:
+            lmax = float(layer.max())
+        lmin = float(layer.min())
+        lmax = lmax - lmin
+        layer = (layer - lmin) / lmax
+        layer = layer * 2**bits          
     if gf:
         img = gaussian_filter(img, 2)
-            
+    img = np.around(img)
+    imgbit = img.astype('uint'+str(bits))
+    return imgbit
         
 
 if __name__ == '__main__':
@@ -129,7 +138,8 @@ if __name__ == '__main__':
         columns, probe = extract_column(x_b, px_b, x_e, px_e, y_b, py_b, y_e, 
                                         py_e, z_buff, z_end, probe, 
                                         sid_map=segment_id_map, 
-                                        pid_map=piece_id_map)
+                                        pid_map=piece_id_map
+                                        binary_map=binary_seg_map)
         percent_included = pre_size / probe_size
         characteristics = characterize.characterize_insertion(columns, g_rep)
         aoes[b] = (characteristics, percent_included)
