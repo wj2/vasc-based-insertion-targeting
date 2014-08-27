@@ -2,7 +2,7 @@
 
 import numpy as np
 import tiff.tifffile as tiff
-from SWC import Piece
+from swc import SWC
 from os.path import splitext
 from compare import compare_masked_to_source_imgs
 
@@ -21,37 +21,34 @@ def crop_mask(mask, bound, im_shape):
                         -newmins[0]:-newmins[0]+im_shape[2]]
     return cropped_mask
 
-def find_bounds(vascswc, cylinder=True):
-    with open(vascswc, 'rb') as swc:
-        i = 0
-        for line in swc:
-            line = line.strip()
-            if line[0] == '#':
-                pass
-            else:
-                entry = Piece.from_string(line, cylinder) 
-                if i == 0: 
-                    xmin = entry.get_dimmin('x')
-                    ymin = entry.get_dimmin('y')
-                    zmin = entry.get_dimmin('z')
+def find_bounds(vascswc=None, vascswcpath=None, cylinder=True):
+    if vascswcpath is not None:
+        vascswc = SWC(vascswcpath)
+    i = 0
+    for seg in vascswc:
+        for piece in seg:
+            if i == 0: 
+                xmin = piece.get_dimmin('x')
+                ymin = piece.get_dimmin('y')
+                zmin = piece.get_dimmin('z')
                     
-                    xmax = entry.get_dimmax('x')
-                    ymax = entry.get_dimmax('y')
-                    zmax = entry.get_dimmax('z')
+                xmax = piece.get_dimmax('x')
+                ymax = piece.get_dimmax('y')
+                zmax = piece.get_dimmax('z')
             
-                    margin = 0
+                margin = 0
 
-                    i += 1
-                else: 
-                    xmin = min(xmin, entry.get_dimmin('x'))
-                    ymin = min(ymin, entry.get_dimmin('y'))
-                    zmin = min(zmin, entry.get_dimmin('z'))
+                i += 1
+            else: 
+                xmin = min(xmin, piece.get_dimmin('x'))
+                ymin = min(ymin, piece.get_dimmin('y'))
+                zmin = min(zmin, piece.get_dimmin('z'))
+                
+                xmax = max(xmax, piece.get_dimmax('x'))
+                ymax = max(ymax, piece.get_dimmax('y'))
+                zmax = max(zmax, piece.get_dimmax('z'))
 
-                    xmax = max(xmax, entry.get_dimmax('x'))
-                    ymax = max(ymax, entry.get_dimmax('y'))
-                    zmax = max(zmax, entry.get_dimmax('z'))
-
-                    margin = max(margin, entry.rad + 0.5)
+                margin = max(margin, piece.rad + 0.5)
 
     if cylinder:
         bounds = {'x':(xmin - margin, xmax + margin), 
@@ -62,14 +59,14 @@ def find_bounds(vascswc, cylinder=True):
      
     return bounds
 
-def resize_mask(swcpath, cylinder=True, maskpath=None, imgpath=None, 
-                imshape=None):
-    bounds = find_bounds(swcpath, cylinder)
+def resize_mask(swc=None, swcpath=None, cylinder=True, mask=None, 
+                maskpath=None, imgpath=None, imshape=None):
+    bounds = find_bounds(swc, swcpath, cylinder)
     if imgpath is None and imshape is None:
         raise IOError('need to be given either imgpath or imshape')
     elif imgpath is not None and imshape is None:
-        imshape = tiff.imread(imgpath)
-    if maskpath is None:
+        imshape = tiff.imread(imgpath).shape
+    if maskpath is None and mask is None:
         print 'cannot resize mask, no path given'
         print '---- orig img ----'
         x = -np.around(bounds['x'][0])
@@ -79,10 +76,12 @@ def resize_mask(swcpath, cylinder=True, maskpath=None, imgpath=None,
         z = -np.around(bounds['z'][0])
         print 'z : '+str(z)+' to '+str(z+imshape[0])
     else:
-        mask = tiff.imread(maskpath)
-        cropped_mask = crop_mask(mask, bounds, img.shape)
-        tiff.imsave(splitext(maskpath)[0] + '-cropped.tif', cropped_mask)
-    return
+        if mask is None:
+            mask = tiff.imread(maskpath)
+        cropped_mask = crop_mask(mask, bounds, imshape)
+        if mask is None:
+            tiff.imsave(splitext(maskpath)[0] + '-cropped.tif', cropped_mask)
+    return cropped_mask
 
 def mask_findings(imgpath, maskpath, swcpath, cylinder):
     

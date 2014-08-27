@@ -5,9 +5,11 @@ import warnings
 import numpy as np
 import cPickle as p
 from scipy.ndimage import gaussian_filter
+
 import parser
 from vasc import util 
 from vasc import characterize
+from vasc import subtractfound
 from vasc.tiff import tifffile as tiff
 from vasc.prepostmatcher import PrePostMatcher
 from vasc.probeplacer import ProbePlacer, create_probe
@@ -76,33 +78,55 @@ def create_cachename(args):
     combname = os.path.abspath(args.pre) + '___' + os.path.abspath(args.post)
     return combname.replace('/','l').replace('.','-')
 
-def load_img(img_path, saturate=None, gf=False, bits=8):
+def load_imgdir(path):
+    files = os.listdir(path)
+    files = filter(lambda x: os.path.splitext(x)[-1] == '.tif', files)
+    for i,f in enumerate(sorted(files)):
+        im = os.path.join(path, f)
+        img = tiff.imread(im)
+        if i == 0: 
+            stack = np.empty((len(files), img.shape[0], img.shape[1]))
+        stack[i] = img
+    return img
+
+def load_img(img_path, raw=False, saturate=None, gf=False, bits=8, 
+             mask=False):
     if os.path.isdir(img_path):
-        pass
-    elif os.path isfile(img_path):
+        img = load_imgdir(img_path)
+    elif os.path.isfile(img_path):
         img = tiff.imread(img_path)
     else:
         raise IOError('img path does not exist or something')
-    for layer in img:
-        if saturate is not None:
-            lmax = np.around(np.percentile(layer, 100 - saturate))
-            layer[layer >= lmax] = lmax
-        else:
-            lmax = float(layer.max())
-        lmin = float(layer.min())
-        lmax = lmax - lmin
-        layer = (layer - lmin) / lmax
-        layer = layer * 2**bits          
-    if gf:
-        img = gaussian_filter(img, 2)
-    img = np.around(img)
-    imgbit = img.astype('uint'+str(bits))
-    return imgbit
-        
+    if not raw:
+        for layer in img:
+            if saturate is not None:
+                lmax = np.around(np.percentile(layer, 100 - saturate))
+                layer[layer >= lmax] = lmax
+            else:
+                lmax = float(layer.max())
+            lmin = float(layer.min())
+            lmax = lmax - lmin
+            layer = (layer - lmin) / lmax
+            layer = layer * 2**bits          
+        if gf:
+            img = gaussian_filter(img, 2)
+        img = np.around(img)
+        img = img.astype('uint'+str(bits))
+    return img
+
+def load_mask(mask_path, swc, shape, binary=False):
+    mask = load_img(mask_path, raw=True)
+    print 'howdy',mask.shape
+    if binary:
+        mask[mask == mask.max()] = 1
+    if shape != mask.shape:
+        mask = subtractfound.resize_mask(swc=swc, mask=mask, imshape=shape)
+    print 'heyho',mask.shape
+    return mask
 
 if __name__ == '__main__':
-    p = parser.damage_quant_parser()
-    args = p.parse_args()
+    parser = parser.damage_quant_parser()
+    args = parser.parse_args()
     mpp = args.microns_per_pixel
     cachename = create_cachename(args)
     cacheplace = os.path.expanduser('~/.vasctargetcache/')
@@ -110,36 +134,41 @@ if __name__ == '__main__':
         os.mkdir(cacheplace)
     used_cache = False
     pre = load_img(args.pre)
+    probe_size = (args.probe_length, args.probe_width)
     if args.look_cache and cachename in os.listdir(cacheplace):
         x, y, z, xy, yz, xz = p.load(open(cacheplace+cachename, 'rb'))
+        print (x, y, z, xy, yz, xz)
         used_cache = True
     else:
         post = load_img(args.post) 
-        probe_size = (args.probe_length, args.probe_width)
         x, y, z, xy, yz, xz = place_and_register(pre, post, args, mpp, 
                                                  probe_size)
     if args.cache and not used_cache:
+        print (x, y, z, xy, yz, xz)
         p.dump((x, y, z, xy, yz, xz), open(cacheplace+cachename, 'wb'))
-    g_rep = swc.SWC(args.swcpath, microns_perpixel=mpp)
+    g_rep = SWC(args.swc_path, microns_perpixel=mpp)
     g_rep.vertexify()
     es = g_rep.check_graph_soundness()
     assert len(es[0]) == 0 and len(es[1]) == 0 and len(es[2]) == 0
+    segment_id_map = load_mask(args.sid_map, g_rep, pre.shape)
+    piece_id_map = load_mask(args.pid_map, g_rep, pre.shape)
+    binary_seg_map = load_mask(args.b_map, g_rep, pre.shape, True)
     aoes = {}
-    for b in args.buffers:
-        probe = create_probe(args.probe_depth, probe_size, xy=xy, yz=yz, xz=xz,
+    for b in args.aoe_buffers:
+        probe = create_probe(probe_size, args.probe_depth, xy=xy, yz=yz, xz=xz,
                              buff=b)
         z_buffed = z + b/2
         z_p, y_p, x_p = probe.shape
-        z_end = min(z_p + z_buff, pre.shape[0])
+        z_end = min(z_p + z_buffed, pre.shape[0])
         px_b, px_e, x_b, x_e = decide_dim(x, x_p, pre.shape[2], 'left', 
                                           'right')
         py_b, py_e, y_b, y_e = decide_dim(y, y_p, pre.shape[1], 'high', 'low')
         pre_size = probe.size
         columns, probe = extract_column(x_b, px_b, x_e, px_e, y_b, py_b, y_e, 
-                                        py_e, z_buff, z_end, probe, 
+                                        py_e, z_buffed, z_end, probe, 
                                         sid_map=segment_id_map, 
-                                        pid_map=piece_id_map
+                                        pid_map=piece_id_map,
                                         binary_map=binary_seg_map)
-        percent_included = pre_size / probe_size
+        percent_included = float(probe.size) / pre_size
         characteristics = characterize.characterize_insertion(columns, g_rep)
         aoes[b] = (characteristics, percent_included)
