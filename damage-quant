@@ -170,5 +170,6 @@ if __name__ == '__main__':
                                         pid_map=piece_id_map,
                                         binary_map=binary_seg_map)
         percent_included = float(probe.size) / pre_size
-        characteristics = characterize.characterize_insertion(columns, g_rep)
+        characteristics = characterize.characterize_insertion(columns, g_rep,
+                                                              percentile=90)
         aoes[b] = (characteristics, percent_included)

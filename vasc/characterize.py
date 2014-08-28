@@ -1,7 +1,8 @@
 
+import numpy as np
 
-
-def characterize_insertion(cols, graph, radlarge=6, hthresh=.785):
+def characterize_insertion(cols, graph, radlarge=6, hthresh=.785, 
+                           percentile=None):
     """ 
     find : 
         length intersected, volume intersected, large vessels hit, horizontal
@@ -11,6 +12,9 @@ def characterize_insertion(cols, graph, radlarge=6, hthresh=.785):
     and compose results into dictionary for return
     in cols: pid_map, sid_map
     """
+    if percentile is not None:
+        radlarge = np.percentile(map(lambda x: x.avg_radius(), graph), 
+                                 percentile)
     chars = {}
     vessels_hit = set(cols['sid_map'].flatten()).difference(set([0]))
     pieces_hit = set(cols['pid_map'].flatten()).difference(set([0]))
@@ -28,5 +32,7 @@ def characterize_insertion(cols, graph, radlarge=6, hthresh=.785):
     chars['vs_vessels'] = chars['large_vessels'] - chars['vl_vessels']
     chars['lenall_vessels'] = reduce(lambda y, x: x.length() + y, segs, 0)
     # chars['lenhit_vessels'] = 
+
+    print chars, radlarge
 
     return chars

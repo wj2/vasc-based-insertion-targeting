@@ -86,7 +86,7 @@
     <designation>-8bitgf5552-snakewrad5-cropmask-distance
 23. do steps (7-14)
     * trace the distance transformed image from (22)
-    * use the image from (5) for the 3D view and radius fill
+\    * use the image from (5) for the 3D view and radius fill
     * save the swc file as 
       <designation>-8bitgf5552-snakewrad5-cropmask-distance-snakewrad5
 
