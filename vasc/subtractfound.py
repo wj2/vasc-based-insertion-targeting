@@ -79,9 +79,11 @@ def resize_mask(swc=None, swcpath=None, cylinder=True, mask=None,
         if mask is None:
             mask = tiff.imread(maskpath)
         cropped_mask = crop_mask(mask, bounds, imshape)
+        mask_name = None
         if mask is None:
-            tiff.imsave(splitext(maskpath)[0] + '-cropped.tif', cropped_mask)
-    return cropped_mask
+            mask_name = splitext(maskpath)[0] + '-cropped.tif'
+            tiff.imsave(mask_name, cropped_mask)
+    return cropped_mask, mask_name
 
 def mask_findings(imgpath, maskpath, swcpath, cylinder):
     

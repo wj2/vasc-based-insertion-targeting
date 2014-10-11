@@ -48,10 +48,12 @@ def load_imgdir(path):
     for i,f in enumerate(sorted(files)):
         im = os.path.join(path, f)
         img = tiff.imread(im)
+        if len(img.shape) == 4 and img.shape[0] == 1 and img.shape[3] == 1:
+            img = img[0, :, :, 0]
         if i == 0: 
             stack = np.empty((len(files), img.shape[0], img.shape[1]))
         stack[i] = img
-    return img
+    return stack
 
 def load_img(img_path, raw=False, saturate=None, gf=False, bits=8, 
              mask=False):
@@ -84,7 +86,7 @@ def load_mask(mask_path, swc, shape, binary=False):
     if binary:
         mask[mask == mask.max()] = 1
     if shape != mask.shape:
-        mask = subtractfound.resize_mask(swc=swc, mask=mask, imshape=shape)
+        mask, _ = subtractfound.resize_mask(swc=swc, mask=mask, imshape=shape)
     print 'heyho',mask.shape
     return mask
 
