@@ -22,7 +22,7 @@ vaa3d -x /local1/vaa3d/v3d_external/bin/plugins/neuron_tracing/snake_tracing/lib
 
 radius fill
 
-
+/local1/vaa3d_related/v3d_external/bin/vaa3d -x neuron_radius -f neuron_radius -i <imagefilename>.v3draw <tracefilename>.swc
 
 gaussian filter
 
