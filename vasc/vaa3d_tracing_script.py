@@ -7,6 +7,8 @@ import time
 import os
 from config import VAA3D, VAA3D_DIR
 import subtractfound
+VAA3D = 'vaa3d'
+VAA3D_DIR = '/local1/vaa3d/v3d_external/'
 
 """
 Tracing procedure
@@ -24,15 +26,16 @@ ouput: swc, swc2mask-segid
 
 """
 
-# SNAKE_TRACE = 'bin/plugins/neuron_tracing/snake_tracing/libsnaketracing.so'
-SNAKE_TRACE = 'bin/plugins/neuron_tracing/snake_tracing/libsnake_tracing_debug.dylib'
+SNAKE_TRACE = 'bin/plugins/neuron_tracing/snake_tracing/libsnake_tracing.so'
+# SNAKE_TRACE = 'bin/plugins/neuron_tracing/snake_tracing/libsnake_tracing_debug.dylib'
 def snake_trace(img_path):
     cmd = [VAA3D]
     x_flag = ['-x', os.path.join(VAA3D_DIR, SNAKE_TRACE)]
     f_flag = ['-f', 'snake_trace']
     i_flag = ['-i', img_path]
-    img_name, img_ext = os.path.splitext(img_path)
-    swc_out = img_name + '-traced.swc'
+    # img_name, img_ext = os.path.splitext(img_path)
+    # swc_out = img_name + '-traced.swc'
+    swc_out = img_path + '_snake.swc'
     o_flag = ['-o', swc_out]
     retcode = check_call(cmd+x_flag+f_flag+i_flag+o_flag)
     return swc_out
@@ -46,14 +49,14 @@ def radius_fill(swc_path, reference_img_path):
     retcode = check_call(cmd+x_flag+f_flag+i_flag)
     return swc_out
 
-# SWC2MASK_BRL = ('bin/plugins/neuron_utilities/swc_to_maskimage_BRL'
-#                 '/libswc2maskBRL.so')
-SWC2MASK_BRL = ('bin/plugins/neuron_utilities/swc_to_maskimage_BRL/'
-                'libswc2maskBRL_debug.dylib')
-# SWC2MASK = ('bin/plugins/neuron_utilities/swc_to_maskimage_cylinder_unit/'
-#             'libswc2mask.so')
+SWC2MASK_BRL = ('bin/plugins/neuron_utilities/swc_to_maskimage_BRL'
+                '/libswc2maskBRL.so')
+# SWC2MASK_BRL = ('bin/plugins/neuron_utilities/swc_to_maskimage_BRL/'
+#                 'libswc2maskBRL_debug.dylib')
 SWC2MASK = ('bin/plugins/neuron_utilities/swc_to_maskimage_cylinder_unit/'
-            'libswc2mask_debug.dylib')
+            'libswc2mask.so')
+# SWC2MASK = ('bin/plugins/neuron_utilities/swc_to_maskimage_cylinder_unit/'
+#             'libswc2mask_debug.dylib')
 def swc_to_mask(swc_path, shape, segid=False):
     cmd = [VAA3D]
     i_flag = ['-i', swc_path]
@@ -81,9 +84,10 @@ def distance_transform(img_path):
     f_flag = ['-f', 'gsdt']
     i_flag = ['-i', img_path]
     p_flag = ['-p', '.5', '1', '0', '1']
+    print img_path
     img_name, img_ext = os.path.splitext(img_path)
     tif_out = img_name + '-distancetransformed' + img_ext
-    o_flag = ['-o ', tif_out]
+    o_flag = ['-o', tif_out]
     retcode = check_call(cmd+x_flag+f_flag+i_flag+o_flag+p_flag)
     return tif_out
 

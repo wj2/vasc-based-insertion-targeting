@@ -77,8 +77,8 @@ def resize_mask(swc=None, swcpath=None, cylinder=True, mask=None,
         print 'z : '+str(z)+' to '+str(z+imshape[0])
     else:
         if mask is None:
-            mask = tiff.imread(maskpath)
-        cropped_mask = crop_mask(mask, bounds, imshape)
+            mask_r = tiff.imread(maskpath)
+        cropped_mask = crop_mask(mask_r, bounds, imshape)
         mask_name = None
         if mask is None:
             mask_name = splitext(maskpath)[0] + '-cropped.tif'
