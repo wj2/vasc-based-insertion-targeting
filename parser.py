@@ -37,3 +37,21 @@ def damage_quant_parser():
     
     
     return parser
+
+def mapper_parser():
+    parser = ap.ArgumentParser(description='map theoretical damage for all '
+                               'possible electrode insertions with specified'
+                               'electrode size and number of rotations')
+    parser.add_argument('data', help='sequence of swc, segid map, microns per '
+                        'pixel value triplets -- in that order'
+                        'with swc first and segid second', nargs='+')
+    parser.add_argument('-r', '--rotations', help='number of rotations to use '
+                        '(default 4)', type=int, default=4)
+    parser.add_argument('-a', '--aoe_buffers', help='buffers on probe size for'
+                        'looking at different areas of effect', nargs='+',
+                        default=(0,), type=int)
+    parser.add_argument('-p', '--probe_dims', help='triplets of depth, '
+                        'length, width of probe size (default 600, 100, 10)',
+                        nargs='+', default=(600, 100, 10))
+    return parser
+    

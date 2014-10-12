@@ -4,6 +4,12 @@ import os
 import warnings
 from tiff import tifffile as tiff
 from scipy.ndimage import gaussian_filter
+import copy
+
+def make_binary_map(segmap):
+    bin_map = copy.deepcopy(segmap)
+    bin_map[bin_map > 0] = 1
+    return bin_map 
 
 def decide_dim(d, d_p, constraint, side1, side2):
     if d - d_p/2. >= 0:
