@@ -77,4 +77,4 @@ def make_maps(args):
                                                       binary_map)
                     maps[triplet][d][b][r] = found_maps
 
-    pickle.dump(maps, open(args.output, 'wb'))
+    return maps

@@ -1,8 +1,10 @@
 #!/usr/bin/python
 
 import parser
+import vasc.mapmaker as mapmaker
 
 if __name__ == '__main__':
     map_parser = parser.mapper_parser()
     args = map_parser.parse_args()
-    map_maker.make_maps(args)
+    maps = mapmaker.make_maps(args)
+    pickle.dump(maps, open(args.output, 'wb'))
