@@ -16,9 +16,21 @@ def crop_mask(mask, bound, im_shape):
     print newmins
     print im_shape
     print mask.shape
-    cropped_mask = mask[-newmins[2]:-newmins[2]+im_shape[0], 
-                        -newmins[1]:-newmins[1]+im_shape[1],
-                        -newmins[0]:-newmins[0]+im_shape[2]]
+    # z-dim is special case, as it may be smaller in the mask
+    # than in the original image
+
+    if mask.shape[0] <= im_shape[0]:
+        print 'alt step'
+        cropped_mask = mask[np.abs(newmins[2]):, 
+                             -newmins[1]:-newmins[1]+im_shape[1],
+                             -newmins[0]:-newmins[0]+im_shape[2]]
+    else:
+        cropped_mask = mask[-newmins[2]:-newmins[2]+im_shape[0], 
+                             -newmins[1]:-newmins[1]+im_shape[1],
+                             -newmins[0]:-newmins[0]+im_shape[2]]
+    # we notice that the swc2mask function flips the image in the 
+    # y-axis, we will correct that here as well
+    cropped_mask = cropped_mask[:,::-1,:]
     return cropped_mask
 
 def find_bounds(vascswc=None, vascswcpath=None, cylinder=True):

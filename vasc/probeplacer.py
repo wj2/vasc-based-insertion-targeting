@@ -27,12 +27,13 @@ def create_probes(sizes, rotations, buffs):
     # converted to tuple to make hashable
     # rotations are (xy, yz, xz) tuples
     probes = {}
+    print sizes
     for s in sizes:
         s = tuple(s)
         probes[s] = {}
         for b in buffs:
             probes[s][b] = {}
-            for r in xy_rotations:
+            for r in rotations:
                 xy, yz, xz = r
                 probe = create_probe(s[1:], s[0], xy=xy, yz=yz, xz=xz)
                 probes[s][b][r] = probe

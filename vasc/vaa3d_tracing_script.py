@@ -7,6 +7,7 @@ import time
 import os
 from config import VAA3D, VAA3D_DIR
 import subtractfound
+import swc
 VAA3D = 'vaa3d'
 VAA3D_DIR = '/local1/vaa3d/v3d_external/'
 
@@ -60,15 +61,16 @@ SWC2MASK = ('bin/plugins/neuron_utilities/swc_to_maskimage_cylinder_unit/'
 def swc_to_mask(swc_path, shape, segid=False):
     cmd = [VAA3D]
     if segid:
-        swc_name, swc_ext = os.path.splitext(swc_path)
-        i_flag = ['-i', swc_path]
+        eswc_path = swc_to_eswc(swc_path)
+        eswc_name, eswc_ext = os.path.splitext(eswc_path)
+        i_flag = ['-i', eswc_path]
         x_flag = ['-x', os.path.join(VAA3D_DIR, SWC2MASK_BRL)]
         f_flag = ['-f','swc2maskBRL']
-        tif_out = swc_name + '-segidmask.tif'
+        tif_out = eswc_name + '-segidmask.tif'
         o_flag = ['-o', tif_out]
     else:
-        eswc_path = swc_to_eswc(swc_path)
-        i_flag = ['-i', eswc_path]
+        swc_name, swc_ext = os.path.splitext(swc_path)
+        i_flag = ['-i', swc_path]
         x_flag = ['-x', os.path.join(VAA3D_DIR, SWC2MASK)]
         f_flag = ['-f', 'swc2mask']
         tif_out = swc_name + '-mask.tif'
@@ -81,15 +83,16 @@ def swc_to_mask(swc_path, shape, segid=False):
     return tif_out
 
 SWC2ESWC = ('bin/plugins/neuron_utilities/Enhanced_SWC_Format_Converter/'
-            'libeswc_converter_debug.so')
+            'libeswc_converter.so')
 def swc_to_eswc(swc_path):
     cmd = [VAA3D]
     x_flag = ['-x', os.path.join(VAA3D_DIR, SWC2ESWC)]
     f_flag = ['-f', 'swc_to_eswc']
     i_flag = ['-i', swc_path]
-    swc_name, swc_ext = os.splitext(swc_path)
+    swc_name, swc_ext = os.path.splitext(swc_path)
     eswc_path = swc_name + '.eswc'
     o_flag = ['-o', eswc_path]
+    retcode = check_call(cmd+x_flag+f_flag+i_flag+o_flag)
     return eswc_path
 
 def distance_transform(img_path):

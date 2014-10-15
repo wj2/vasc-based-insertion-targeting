@@ -395,19 +395,28 @@ class SWC(SuperSegment):
             self.segs = segs
             self.num_segs = len(segs)
         dict_all = {}
+        entries = 0
         with open(path, 'rb') as swc_text:
             for entry in swc_text:
                 if entry[0] == '#':
+                    print entry
                     pass
                 else:
+                    entries += 1
                     swcent = Piece.from_string(entry, cylinder)
                     if swcent.par == -1:
                         s = Segment(self.micsperpix, pieces=np.array([swcent]))
                         self.segs.append(s)
                         self.num_segs += 1
                     else:
+                        try:
+                            here = dict_all[swcent.par]
+                            print 'already ',here
+                            print 'new ',swcent
+                        except KeyError:
+                            pass
                         dict_all[swcent.par] = swcent
-
+        print entries
         # now we have all parents in one dict and all other segments in another
         # indexed by parent
         for i, segment in enumerate(self.segs):

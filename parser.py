@@ -52,6 +52,9 @@ def mapper_parser():
                         default=(0,), type=int)
     parser.add_argument('-p', '--probe_dims', help='triplets of depth, '
                         'length, width of probe size (default 600, 100, 10)',
-                        nargs='+', default=(600, 100, 10))
+                        nargs='+', default=(600, 100, 10), type=int)
+    parser.add_argument('-o', '--ouput', help='file to save output in '
+                        '(default "placeholder.pk1")', 
+                        default='placeholder.pk1')
     return parser
     
