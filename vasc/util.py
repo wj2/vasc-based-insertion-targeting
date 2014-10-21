@@ -5,6 +5,30 @@ import warnings
 from tiff import tifffile as tiff
 from scipy.ndimage import gaussian_filter
 import copy
+from functools import partial
+
+def memoize(f):
+
+    class MemDict(dict):
+
+        def __init__(self, f):
+            self.f = f
+
+        def __get__(self, obj, objtype=None):
+            if obj is None:
+                return self.f
+            else:
+                return partial(self, obj)
+
+        def __call__(self, *args):
+            return self[args]
+            
+        def __missing__(self, args):
+            val = self.f(*args)
+            self[args] = val
+            return val
+
+    return MemDict(f)
 
 def make_binary_map(segmap):
     bin_map = copy.deepcopy(segmap)

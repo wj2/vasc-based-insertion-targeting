@@ -2,9 +2,11 @@
 
 import parser
 import vasc.mapmaker as mapmaker
+import cPickle as pickle
 
 if __name__ == '__main__':
     map_parser = parser.mapper_parser()
     args = map_parser.parse_args()
-    maps = mapmaker.make_maps(args)
+    maps = mapmaker.make_maps(args.data, args.probe_dims, args.rotations, 
+                              args.aoe_buffers)
     pickle.dump(maps, open(args.output, 'wb'))

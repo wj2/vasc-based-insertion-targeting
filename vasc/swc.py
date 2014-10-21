@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from os.path import splitext
 from compare import angle_between
 import tiff.tifffile as tiff
+from util import memoize
 
 """
 Classes: SWC, SuperSegment, Segment, Piece, Vertex
@@ -89,6 +90,7 @@ class SuperSegment(object):
             f.write(str(self))
         return None
 
+    @memoize
     def segment_id(self, sid):
         for s in self.segs:
             if s.ident == sid:
@@ -547,6 +549,7 @@ class Segment(object):
         plt.ylabel('radius')
         plt.show()
 
+    @memoize
     def downwardness(self, crow=True):
         """ 
         returns difference in radians between direction of segment and 
@@ -568,6 +571,7 @@ class Segment(object):
         xyzs = self.xyzs
         return np.diff(xyzs, axis=0)
 
+    @memoize
     def avg_radius(self, weighted=False):
         if weighted:
             dxyzs = self._xyz_diffs()
@@ -577,27 +581,32 @@ class Segment(object):
             avgrad = np.mean(self.rads)
         return avgrad * self.mpp
             
+    @memoize
     def avg_direction(self):
         """ length weighted average direction of segment """
         diff_xyzs = self._xyz_diffs()
         length_xyzs = self._piece_lens(diff_xyzs)
         return np.average(diff_xyzs, axis=0, weights=length_xyzs)
 
+    @memoize
     def cumu_direction(self):
         diff_xyzs = self._xyz_diffs()
         length_xyzs = self._piece_lens(diff_xyzs)
         return
 
+    @memoize
     def length(self):
         """ length of segment, calculated going point to point """
         diff_xyzs = self._xyz_diffs()
         return self._piece_lens(diff_xyzs).sum() * self.mpp
 
+    @memoize
     def crow_length(self):
         """ length of segment as crow flies, from first to last piece """
         return np.sqrt(np.sum((np.array(self[0].xyz) 
                                - np.array(self[-1].xyz))**2)) * self.mpp
-
+    
+    @memoize
     def crow_direction(self):
         """ directionality of segment, taken from first to last piece only """
         dir_ = np.array(self[-1].xyz) - np.array(self[0].xyz)
