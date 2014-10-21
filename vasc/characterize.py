@@ -32,7 +32,4 @@ def characterize_insertion(cols, graph, radlarge=6, hthresh=.785,
     chars['vs_vessels'] = chars['large_vessels'] - chars['vl_vessels']
     chars['lenall_vessels'] = reduce(lambda y, x: x.length() + y, segs, 0)
     # chars['lenhit_vessels'] = 
-
-    print chars, radlarge
-
     return chars

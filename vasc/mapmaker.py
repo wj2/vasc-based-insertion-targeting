@@ -25,6 +25,7 @@ def all_valid_insertions(probe, graph, segid_map, binary_map):
     else:
         z_lim = segid_map.shape[0] + 1
     for i, y in enumerate(xrange(y_b, y_e)):
+        print 'row: '+str(i)
         for j, x in enumerate(xrange(x_b, x_e)):
             segid_col = segid_map[:z_lim, y-y_off:y+y_off, x-x_off:x+x_off]
             binary_col = binary_map[:z_lim, y-y_off:y+y_off, x-x_off:x+x_off]
@@ -72,6 +73,7 @@ def make_maps(args):
             for b in buffs:
                 maps[triplet][d][b] = {}
                 for r in rots:
+                    print 'doing: '+str(d)+':'+str(b)+':'+str(r)
                     probe = probes[d][b][r]
                     found_maps = all_valid_insertions(probe, graph, segid_map, 
                                                       binary_map)
