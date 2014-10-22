@@ -22,11 +22,12 @@ def make_red_alpha_scale_cm():
                                                   redalphadict)
     return redalphascale    
 
-def create_probes(sizes, rotations, buffs):
+def create_probes(sizes, rotations, buffs, mpp=1.0):
     # sizes here includes depth, in the form (depth, length, width), will be 
     # converted to tuple to make hashable
     # rotations are (xy, yz, xz) tuples
     probes = {}
+    y_off, x_off = 0,0
     print sizes
     for s in sizes:
         s = tuple(s)
@@ -35,12 +36,15 @@ def create_probes(sizes, rotations, buffs):
             probes[s][b] = {}
             for r in rotations:
                 xy, yz, xz = r
-                probe = create_probe(s[1:], s[0], xy=xy, yz=yz, xz=xz)
+                probe = create_probe(s[1:], s[0], mpp=mpp, xy=xy, yz=yz, xz=xz)
                 probes[s][b][r] = probe
-    return probes
+                y_off = max(y_off, int(np.ceil(probe.shape[1] / 2.)))
+                x_off = max(x_off, int(np.ceil(probe.shape[2] / 2.)))
+    return probes, y_off, x_off
 
-def create_probe(size, depth, xy=0, yz=0, xz=0, buff=0):
-    probe = np.ones((depth+buff, size[0]+buff, size[1]+buff+1))
+def create_probe(size, depth, xy=0, yz=0, xz=0, buff=0, mpp=1.0):
+    probe = np.ones((depth+buff, (size[0]+buff)/mpp, 
+                     (size[1]+buff)/mpp+1))
     probe[:, :, -1] = 0
     probe = rotate_probe(probe, xy, yz, xz)
     return probe

@@ -6,24 +6,21 @@ from util import *
 import numpy as np
 import cPickle as pickle
 import characterize
+import matplotlib.pyplot as plt
 
-def all_valid_insertions(probe, graph, segid_map, binary_map):
+def all_valid_insertions(probe, graph, segid_map, binary_map, y_off, x_off):
     expect_chars = ['num_vessels', 'vol_intersected', 'large_vessels', 
                     'vert_vessels', 'horiz_vessels', 'vl_vessels', 
                     'vs_vessels', 'lenall_vessels']
     # FACTOR OUT boundary calculation, take most stringent boundaries at 
     # beginning to ensure all maps have same dims
-    y_off = int(np.ceil(probe.shape[0] / 2.))
-    x_off = int(np.ceil(probe.shape[1] / 2.))
-    y_b = y_off
-    y_e = segid_map.shape[0] - y_off
-    x_b = x_off
-    x_e = segid_map.shape[1] - x_off
-    print 'y',y_b, y_e
-    print 'x',x_b, x_e
     maps = {}
+    y_b, y_e = (y_off, segid_map.shape[0] - y_off)
+    x_b, x_e = (x_off, segid_map.shape[1] - x_off)
+    py, py_off = probe.shape[0], int(np.floor(probe.shape[0] / 2.)) 
+    px, px_off = probe.shape[1], int(np.floor(probe.shape[1] / 2.))
     for c in expect_chars:
-        maps[c] = np.empty((y_e-y_b, x_e-x_b))
+        maps[c] = np.empty((1, y_e-y_b, x_e-x_b))
     # if probe.shape[0] < segid_map.shape[0]:
     #     z_lim = probe.shape[0] + 1
     # else:
@@ -33,16 +30,15 @@ def all_valid_insertions(probe, graph, segid_map, binary_map):
         print 'row: '+str(i)
         for j, x in enumerate(xrange(x_b, x_e)):
         # for j, x in enumerate(xrange(x_b, x_b + 20)):
-            segid_ls = segid_map[y-y_off:y+y_off, x-x_off:x+x_off]
-            binary_l = binary_map[y-y_off:y+y_off, x-x_off:x+x_off]
-
+            segid_ls = segid_map[y-py_off:y-py_off+py, x-px_off:x-px_off+px]
+            binary_l = binary_map[y-py_off:y-py_off+py, x-px_off:x-px_off+px]
             assert probe.shape == segid_ls.shape
             sid_map = np.concatenate(segid_ls[probe > 0])
             sid_map = np.unique(sid_map)
             binary_layer = binary_l * probe
             chars = characterize.do_stats(sid_map, binary_layer, graph)
             for c in expect_chars:
-                maps[c][i, j] = chars[c]
+                maps[c][0, i, j] = chars[c]
     return maps
             
 def number_to_angles(n):
@@ -73,11 +69,11 @@ def make_maps(data, probe_dims, rotations, aoe_buffers):
     rots = [(r, 0, 0) for r in rots]
     # create probes for use later
     buffs = aoe_buffers
-    probes = create_probes(dims, rots, buffs)
     maps = {}
     for triplet in data_triplets:
         maps[triplet] = {}
         swc_path, segid_path, mpp = triplet
+        probes, y_off, x_off = create_probes(dims, rots, buffs, mpp=mpp)
         graph = swc.SWC(path=swc_path, microns_perpixel=mpp)
         # graph = graph.vertexify()
         # es = graph.check_graph_soundness()
@@ -95,15 +91,97 @@ def make_maps(data, probe_dims, rotations, aoe_buffers):
                     print 'doing: '+str(d)+':'+str(b)+':'+str(r)
                     probe = probes[d][b][r][0, :, :]
                     found_maps = all_valid_insertions(probe, graph, flat_segid, 
-                                                      flat_binary)
+                                                      flat_binary, y_off, 
+                                                      x_off)
                     maps[triplet][d][b][r] = found_maps
 
     return maps
 
+def combine_angles_helper(rots_dict, func):
+    newdict = {}
+    maxval = len(rots_dict.values()) - 1 
+    for i, rot in enumerate(rots_dict.values()):
+        for char in rot.keys():
+            if i == 0:
+                newdict[char] = rot[char]
+            else:
+                newdict[char] = np.vstack((newdict[char], rot[char]))
+                if i == maxval:
+                    newdict[char] = func(newdict[char], axis=0)
+    return newdict
+
 def combine_angles(maps, func):
+    newdict = {}
     for trip in maps.keys():
-        for dim in trip.keys():
-            for b in dim.keys():
-                for i, rot in b.keys():
-                    stack = np.dstack(b.values())
-    
+        newdict[trip] = {}
+        for dim in maps[trip].keys():
+            newdict[trip][dim] = {}
+            for buff in maps[trip][dim].keys():
+                combined, mm = combine_angles_helper(maps[trip][dim][buff], func)
+                newdict[trip][dim][buff] = combined
+    return newdict
+
+def get_minmax(dimdict, buff=0):
+    mmv = {}
+    for char in dimdict[dimdict.keys()[0]][buff].keys():
+        for i, dim in enumerate(dimdict.keys()):
+            dmin = np.min(dimdict[dim][buff][char])
+            dmax = np.max(dimdict[dim][buff][char])
+            if i == 0:
+                vmin = dmin
+                vmax = dmax
+            else:
+                vmin = min(dmin, vmin)
+                vmax = max(dmax, vmax)
+        mmv[char] = (vmin, vmax)
+    return mmv
+            
+
+def plot_probesizes(dimdict, buff=0):
+    fig = plt.figure()
+    rows = len(dimdict.keys()) + 1
+    cols = len(dimdict[dimdict.keys()[0]][buff].keys())
+    probesizefunc = lambda x: x[1]
+    mmv = get_minmax(dimdict, buff)
+    ddkeys = sorted(dimdict.keys(), key=probesizefunc)
+    for i, d in enumerate(ddkeys):
+        chardict = dimdict[d][buff]
+        plot_probesizemap(d, chardict, fig, rows, cols, i*cols + 1, mmv)
+    plot_probesizeplot(dimdict, probesizefunc, np.mean, fig=fig, rows=rows,
+                       cols=cols, num=(i+1)*cols + 1)
+
+def plot_probesizemap(psize, chardict, fig, rows, cols, num, mmv):
+    for i, char in enumerate(chardict.keys()):
+        vmin, vmax = mmv[char]
+        cax = fig.add_subplot(rows, cols, num + i)
+        im = cax.imshow(chardict[char], vmin=vmin, vmax=vmax)
+        assert chardict[char].min() >= vmin
+        assert chardict[char].max() <= vmax
+        if num == 1:
+            plt.colorbar(im)
+            cax.set_title(char)
+        if i == 0:
+            cax.set_ylabel(psize)
+
+def plot_probesizeplot(dimdict, sizefunc, mapfunc, buff=0, fig=None, rows=None, 
+                       cols=None, num=None):
+    if fig is None or rows is None or cols is None or num is None:
+        fig = plt.figure()
+        rows = 1
+        cols = len(dimdict[dimdict.keys()[0]][buff].keys())
+        num = 1
+    for i, char in enumerate(dimdict[dimdict.keys()[0]][buff].keys()):
+        plist = []
+        mlist = []
+        for d in dimdict.keys():
+            cmap = dimdict[d][buff][char]
+            plist.append(sizefunc(d))
+            mlist.append(mapfunc(cmap))
+        cplot = fig.add_subplot(rows, cols, num+i)
+        plist, mlist = np.array(plist), np.array(mlist)
+        pargs = np.argsort(plist)
+        cplot.plot(plist[pargs], mlist[pargs], '-o', markersize=2)
+        if num == 1:
+            cplot.set_title(char)
+            
+                         
