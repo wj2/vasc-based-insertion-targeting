@@ -12,8 +12,6 @@ def all_valid_insertions(probe, graph, segid_map, binary_map, y_off, x_off):
     expect_chars = ['num_vessels', 'vol_intersected', 'large_vessels', 
                     'vert_vessels', 'horiz_vessels', 'vl_vessels', 
                     'vs_vessels', 'lenall_vessels']
-    # FACTOR OUT boundary calculation, take most stringent boundaries at 
-    # beginning to ensure all maps have same dims
     maps = {}
     y_b, y_e = (y_off, segid_map.shape[0] - y_off)
     x_b, x_e = (x_off, segid_map.shape[1] - x_off)
@@ -117,7 +115,7 @@ def combine_angles(maps, func):
         for dim in maps[trip].keys():
             newdict[trip][dim] = {}
             for buff in maps[trip][dim].keys():
-                combined, mm = combine_angles_helper(maps[trip][dim][buff], func)
+                combined = combine_angles_helper(maps[trip][dim][buff], func)
                 newdict[trip][dim][buff] = combined
     return newdict
 
@@ -136,6 +134,13 @@ def get_minmax(dimdict, buff=0):
         mmv[char] = (vmin, vmax)
     return mmv
             
+
+def make_dimplots(mapdict, anglefunc=np.min, buff=0):
+    mapdict = combine_angles(mapdict, anglefunc)
+    for dim in mapdict.keys():
+        plot_probesizes(mapdict[dim], buff)
+        plt.suptitle(dim)
+    plt.show()
 
 def plot_probesizes(dimdict, buff=0):
     fig = plt.figure()
