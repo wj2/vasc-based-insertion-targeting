@@ -8,7 +8,8 @@ import cPickle as pickle
 import characterize
 import matplotlib.pyplot as plt
 
-def all_valid_insertions(probe, graph, segid_map, binary_map, y_off, x_off):
+def all_valid_insertions(probe, graph, segid_map, binary_map, y_off, x_off,
+                         radlarge):
     expect_chars = ['num_vessels', 'vol_intersected', 'large_vessels', 
                     'vert_vessels', 'horiz_vessels', 'vl_vessels', 
                     'vs_vessels', 'lenall_vessels']
@@ -34,7 +35,8 @@ def all_valid_insertions(probe, graph, segid_map, binary_map, y_off, x_off):
             sid_map = np.concatenate(segid_ls[probe > 0])
             sid_map = np.unique(sid_map)
             binary_layer = binary_l * probe
-            chars = characterize.do_stats(sid_map, binary_layer, graph)
+            chars = characterize.do_stats(sid_map, binary_layer, graph, 
+                                          radlarge=radlarge)
             for c in expect_chars:
                 maps[c][0, i, j] = chars[c]
     return maps
@@ -58,7 +60,7 @@ def flatten_uval_map(uvmap):
             newarr[y, x] = vs
     return newarr
 
-def make_maps(data, probe_dims, rotations, aoe_buffers):
+def make_maps(data, probe_dims, rotations, aoe_buffers, perc=None):
     data_triplets = [(data[i], data[i+1], float(data[i+2])) 
                      for i in xrange(0, len(data), 3)]
     dims = [(probe_dims[i], probe_dims[i+1], probe_dims[i+2]) 
@@ -73,6 +75,12 @@ def make_maps(data, probe_dims, rotations, aoe_buffers):
         swc_path, segid_path, mpp = triplet
         probes, y_off, x_off = create_probes(dims, rots, buffs, mpp=mpp)
         graph = swc.SWC(path=swc_path, microns_perpixel=mpp)
+        if perc is not None:
+            radlarge = np.percentile(map(lambda x: x.avg_radius(), graph), 
+                                     perc)
+        else:
+            radlarge = 6
+        print radlarge
         # graph = graph.vertexify()
         # es = graph.check_graph_soundness()
         # assert len(es[0]) == 0 and len(es[1]) == 0 and len(es[2]) == 0
@@ -90,7 +98,7 @@ def make_maps(data, probe_dims, rotations, aoe_buffers):
                     probe = probes[d][b][r][0, :, :]
                     found_maps = all_valid_insertions(probe, graph, flat_segid, 
                                                       flat_binary, y_off, 
-                                                      x_off)
+                                                      x_off, radlarge=radlarge)
                     maps[triplet][d][b][r] = found_maps
 
     return maps
@@ -178,14 +186,18 @@ def plot_probesizeplot(dimdict, sizefunc, mapfunc, buff=0, fig=None, rows=None,
     for i, char in enumerate(dimdict[dimdict.keys()[0]][buff].keys()):
         plist = []
         mlist = []
+        mlist_error = []
         for d in dimdict.keys():
             cmap = dimdict[d][buff][char]
             plist.append(sizefunc(d))
             mlist.append(mapfunc(cmap))
+            mlist_error.append(np.std(cmap))
         cplot = fig.add_subplot(rows, cols, num+i)
         plist, mlist = np.array(plist), np.array(mlist)
+        mlist_error = np.array(mlist_error)
         pargs = np.argsort(plist)
         cplot.plot(plist[pargs], mlist[pargs], '-o', markersize=2)
+        cplot.errorbar(plist[pargs], mlist[pargs], yerr=mlist_error[pargs])
         if num == 1:
             cplot.set_title(char)
             

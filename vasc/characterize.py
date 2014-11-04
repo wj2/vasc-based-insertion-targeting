@@ -19,8 +19,7 @@ def do_stats(vessels_hit, binlayer, graph, radlarge=6, hthresh=.785):
     # chars['lenhit_vessels'] = 
     return chars
 
-def characterize_insertion(cols, graph, radlarge=6, hthresh=.785, 
-                           percentile=None):
+def characterize_insertion(cols, graph, radlarge=6, hthresh=.785):
     """ 
     find : 
         length intersected, volume intersected, large vessels hit, horizontal
@@ -30,9 +29,6 @@ def characterize_insertion(cols, graph, radlarge=6, hthresh=.785,
     and compose results into dictionary for return
     in cols: pid_map, sid_map
     """
-    if percentile is not None:
-        radlarge = np.percentile(map(lambda x: x.avg_radius(), graph), 
-                                 percentile)
     # vessels_hit = set(cols['sid_map'].flatten()).difference(set([0]))
     vessels_hit = np.unique(cols['sid_map'])
     if vessels_hit[0] == 0:
