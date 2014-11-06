@@ -416,6 +416,7 @@ class SWC(SuperSegment):
                 ordered.append(entry)
             seg = Segment(self.micsperpix, pieces=np.array(ordered))
             self.segs.append(seg)
+            self.num_segs += 1
 
     def _define_by_eswc_path(self, eswc_text, cylinder):
         seg_dict = {}
@@ -451,6 +452,8 @@ class SWC(SuperSegment):
     def _define_by_swc_path(self, swc_text, cylinder):
         warnings.warn('got swc (not eswc) to represent: THE SEGMENT NUMBERS '
                       'WILL NOT BE THE SAME AS IN VAA3D')
+        dict_all = {}
+        entries = 0
         for entry in swc_text:
             if entry[0] == '#':
                 pass
@@ -468,20 +471,19 @@ class SWC(SuperSegment):
                         self.segs.append(s)
                         self.num_segs += 1
                         if here is not False:
-                            print here
                             here.par = -1
                             h = Segment(self.micsperpix, pieces=np.array([here]))
                             self.segs.append(h)
                             self.num_segs += 1
                             dict_all[swcent.par] = False
                             swcent.par = -1
-                        except KeyError:
-                            dict_all[swcent.par] = swcent
-                for i, segment in enumerate(self.segs):
-                    segment[0].seg = segment.ident
-                    most_parentest = segment[0]
-                    self.segs[i] = _delve_to_children(dict_all, most_parentest, 
-                                                      segment)
+                    except KeyError:
+                        dict_all[swcent.par] = swcent
+        for i, segment in enumerate(self.segs):
+            segment[0].seg = segment.ident
+            most_parentest = segment[0]
+            self.segs[i] = _delve_to_children(dict_all, most_parentest, 
+                                              segment)
 
     def _define_by_path(self, path, cylinder, segs, ident):
         if ident is None:
@@ -492,12 +494,11 @@ class SWC(SuperSegment):
         else:
             self.segs = segs
             self.num_segs = len(segs)
-        dict_all = {}
-        entries = 0
         with open(path, 'rb') as swc_text:
             if path.split('.')[-1] == 'eswc':
                 self._define_by_eswc_path(swc_text, cylinder)
             else:
+                self._define_by_swc_path(swc_text, cylinder)
 
     @classmethod
     def from_vida_mat(cls, path, mpp, buff=70):
@@ -764,8 +765,12 @@ class Piece(object):
         self.vertex = None
         if len(attributes) > 7:
             self.seg = int(attributes[7])
+            self.layer = int(attributes[8])
+            self.feature = int(attributes[9])
         else:
             self.seg = -2
+            self.layer = -2
+            self.feature = -2
 
     @classmethod
     def from_string(cls, entry, cylinder):
@@ -786,9 +791,17 @@ class Piece(object):
         return dimmax
 
     def __repr__(self):
-        return (str(self.ident)+' '+str(self.struct)+' '+str(self.x)+' '
-                +str(self.y)+' '+str(self.z)+' '+str(self.rad)+' '
-                +str(self.par)+' '+str(self.seg)+' 1 0\n')    
+        if self.feature > -1:
+            seg = self.seg
+            layer = self.layer
+            feat = self.feature
+            enhanced = ' {} {} {}'.format(seg, layer, feat)
+        else:
+            enhanced = ''
+        rep = '{} {} {} {} {} {} {}{}\n'.format(self.ident, self.struct, self.x,
+                                              self.y, self.z, self.rad, 
+                                              self.par, enhanced)
+        return rep
 
     @property
     def xyz(self):
