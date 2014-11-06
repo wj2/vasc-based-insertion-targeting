@@ -7,6 +7,7 @@ from os.path import splitext
 from compare import angle_between
 import tiff.tifffile as tiff
 from util import memoize
+import warnings
 
 """
 Classes: SWC, SuperSegment, Segment, Piece, Vertex
@@ -21,6 +22,17 @@ Segment contains Piece(s)
 """
 
 SEGS_ORDERED_AND_COMPLETE = False
+
+def count_unique(path):
+    with open(path, 'rb') as s:
+        idents = []
+        for line in s:
+            if line[0] == '#':
+                pass
+            else:
+                spline = line.split(' ')
+                idents.append(int(spline[7]))
+    return np.unique(idents)
 
 def create_super_seg(indices, swc, ident=None):
     return SuperSegment([swc[i] for i in indices], ident=ident)
@@ -386,7 +398,91 @@ class SWC(SuperSegment):
     def _define_by_segments(self, segments):
         self.segs = segments
         self.num_segs = len(segments) 
+
+    def _sort_into_segs(self, sdict, pid_dict, par_dict):
+        self.segs = []
+        for s in sdict.keys():
+            pieces = sdict[s]
+            ids = pid_dict[s]
+            pars = par_dict[s]
+            top_parent_set = pars.difference(ids)
+            top_par = top_parent_set.pop()
+            assert len(top_parent_set) == 0
+            par = top_par
+            ordered = []
+            while pieces.get(par, False):
+                entry = pieces[par]
+                par = entry.ident
+                ordered.append(entry)
+            seg = Segment(self.micsperpix, pieces=np.array(ordered))
+            self.segs.append(seg)
+
+    def _define_by_eswc_path(self, eswc_text, cylinder):
+        seg_dict = {}
+        pid_dict = {}
+        par_dict = {}
+        for entry in eswc_text:
+            if entry[0] == '#':
+                pass
+            else:
+                swcent = Piece.from_string(entry, cylinder)
+                # print swcent.seg
+                try:
+                    piece_dict = seg_dict[swcent.seg]
+                    id_set = pid_dict[swcent.seg]
+                    p_set = par_dict[swcent.seg]
+                    try: 
+                        e = piece_dict[swcent.par]
+                        print 'damn it'
+                    except:
+                        pass
+                    piece_dict[swcent.par] = swcent
+                    id_set.add(swcent.ident)
+                    p_set.add(swcent.par)
+                except KeyError:
+                    seg_dict[swcent.seg] = {}
+                    pid_dict[swcent.seg] = set()
+                    par_dict[swcent.seg] = set()
+                    seg_dict[swcent.seg][swcent.par] = swcent
+                    pid_dict[swcent.seg].add(swcent.ident)
+                    par_dict[swcent.seg].add(swcent.par)
+        self._sort_into_segs(seg_dict, pid_dict, par_dict)
         
+    def _define_by_swc_path(self, swc_text, cylinder):
+        warnings.warn('got swc (not eswc) to represent: THE SEGMENT NUMBERS '
+                      'WILL NOT BE THE SAME AS IN VAA3D')
+        for entry in swc_text:
+            if entry[0] == '#':
+                pass
+            else:
+                entries += 1
+                swcent = Piece.from_string(entry, cylinder)
+                if swcent.par == -1:
+                    s = Segment(self.micsperpix, pieces=np.array([swcent]))
+                    self.segs.append(s)
+                    self.num_segs += 1
+                else:
+                    try:
+                        here = dict_all[swcent.par]
+                        s = Segment(self.micsperpix, pieces=np.array([swcent]))
+                        self.segs.append(s)
+                        self.num_segs += 1
+                        if here is not False:
+                            print here
+                            here.par = -1
+                            h = Segment(self.micsperpix, pieces=np.array([here]))
+                            self.segs.append(h)
+                            self.num_segs += 1
+                            dict_all[swcent.par] = False
+                            swcent.par = -1
+                        except KeyError:
+                            dict_all[swcent.par] = swcent
+                for i, segment in enumerate(self.segs):
+                    segment[0].seg = segment.ident
+                    most_parentest = segment[0]
+                    self.segs[i] = _delve_to_children(dict_all, most_parentest, 
+                                                      segment)
+
     def _define_by_path(self, path, cylinder, segs, ident):
         if ident is None:
             self.ident = path
@@ -399,33 +495,9 @@ class SWC(SuperSegment):
         dict_all = {}
         entries = 0
         with open(path, 'rb') as swc_text:
-            for entry in swc_text:
-                if entry[0] == '#':
-                    print entry
-                    pass
-                else:
-                    entries += 1
-                    swcent = Piece.from_string(entry, cylinder)
-                    if swcent.par == -1:
-                        s = Segment(self.micsperpix, pieces=np.array([swcent]))
-                        self.segs.append(s)
-                        self.num_segs += 1
-                    else:
-                        try:
-                            here = dict_all[swcent.par]
-                            print 'already ',here
-                            print 'new ',swcent
-                        except KeyError:
-                            pass
-                        dict_all[swcent.par] = swcent
-        print entries
-        # now we have all parents in one dict and all other segments in another
-        # indexed by parent
-        for i, segment in enumerate(self.segs):
-            segment[0].seg = segment.ident
-            most_parentest = segment[0]
-            self.segs[i] = _delve_to_children(dict_all, most_parentest, 
-                                              segment)
+            if path.split('.')[-1] == 'eswc':
+                self._define_by_eswc_path(swc_text, cylinder)
+            else:
 
     @classmethod
     def from_vida_mat(cls, path, mpp, buff=70):
@@ -474,19 +546,23 @@ class Segment(object):
     
     def __init__(self, micsperpix, ident=None, pieces=None):
         self.mpp = micsperpix
-        if ident is None:
-            Segment._seg_counter += 1
-            self.ident = Segment._seg_counter
-        else:
-            self.ident = ident
         if pieces is None:
             self._pieces = np.array([])
             self._num_pieces = 0
         else:
             self._pieces = np.array(pieces)
-            for p in self._pieces:
-                p.seg = self.ident
             self._num_pieces = len(pieces)
+            if self._pieces[0].seg == -2:
+                # no identity from pieces
+                if ident is None:
+                    Segment._seg_counter += 1
+                    self.ident = Segment._seg_counter
+                else:
+                    self.ident = ident
+                for p in self._pieces:
+                    p.seg = self.ident
+            else:
+                self.ident = self._pieces[0].seg
 
     def __repr__(self):
         rep = '## segment '+str(self.ident)+' ##\n'
@@ -689,7 +765,7 @@ class Piece(object):
         if len(attributes) > 7:
             self.seg = int(attributes[7])
         else:
-            self.seg = -1
+            self.seg = -2
 
     @classmethod
     def from_string(cls, entry, cylinder):
