@@ -11,6 +11,8 @@ import swc
 VAA3D = 'vaa3d'
 VAA3D_DIR = '/local1/vaa3d/v3d_external/'
 
+FIJI = '/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx'
+
 """
 Tracing procedure
 
@@ -66,8 +68,8 @@ def swc_to_mask(swc_path, shape, segid=False):
         i_flag = ['-i', eswc_path]
         x_flag = ['-x', os.path.join(VAA3D_DIR, SWC2MASK_BRL)]
         f_flag = ['-f','swc2maskBRL']
-        tif_out = eswc_name + '-segidmask.tif'
-        o_flag = ['-o', tif_out]
+        v3d_out = eswc_name + '-segidmask.v3draw'
+        o_flag = ['-o', v3d_out]
     else:
         swc_name, swc_ext = os.path.splitext(swc_path)
         i_flag = ['-i', swc_path]
@@ -76,11 +78,20 @@ def swc_to_mask(swc_path, shape, segid=False):
         tif_out = swc_name + '-mask.tif'
         o_flag = ['-o', tif_out]
     retcode = check_call(cmd+x_flag+f_flag+i_flag+o_flag)
-    # ADD IN CROPPING OF MASK
+    if segid:
+        tif_out = v3draw_to_tif16(v3d_out)
     _, tif_out = subtractfound.resize_mask(swcpath=swc_path, maskpath=tif_out, 
                                             imshape=shape)
-    
     return tif_out
+
+V3DRAW_CONV = 'brl_v3draw_convert.js'
+def v3draw_to_tif16(imgpath):
+    fname, ext = os.path.splitext(imgpath)
+    outpath = fname + '.tif'
+    cmd = FIJI+' --headless -macro '+V3DRAW_CONV+' '+imgpath':'+outpath
+    retcode = check_call(cmd.split(' '))
+    return outpath
+
 
 SWC2ESWC = ('bin/plugins/neuron_utilities/Enhanced_SWC_Format_Converter/'
             'libeswc_converter.so')

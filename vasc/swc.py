@@ -385,10 +385,13 @@ class SuperSegment(object):
 
 class SWC(SuperSegment):
     
-    def __init__(self, path=None, segments=None, microns_perpixel=1, 
+    def __init__(self, path=None, segments=None, mpp=None, 
                  cylinder=True, ident=None):
         """ must have one of segments or path or both """
-        self.micsperpix = microns_perpixel
+        if mpp is None:
+            self.mpp = np.ones((1, 3))
+        else:
+            self.mpp = np.array(mpp).reshape(1,3)
         self._vertices = {}
         if path is None and segments is not None:
             super(SWC, self).__init__(segments, ident)
@@ -414,7 +417,7 @@ class SWC(SuperSegment):
                 entry = pieces[par]
                 par = entry.ident
                 ordered.append(entry)
-            seg = Segment(self.micsperpix, pieces=np.array(ordered))
+            seg = Segment(self.mpp, pieces=np.array(ordered))
             self.segs.append(seg)
             self.num_segs += 1
 
@@ -461,18 +464,18 @@ class SWC(SuperSegment):
                 entries += 1
                 swcent = Piece.from_string(entry, cylinder)
                 if swcent.par == -1:
-                    s = Segment(self.micsperpix, pieces=np.array([swcent]))
+                    s = Segment(self.mpp, pieces=np.array([swcent]))
                     self.segs.append(s)
                     self.num_segs += 1
                 else:
                     try:
                         here = dict_all[swcent.par]
-                        s = Segment(self.micsperpix, pieces=np.array([swcent]))
+                        s = Segment(self.mpp, pieces=np.array([swcent]))
                         self.segs.append(s)
                         self.num_segs += 1
                         if here is not False:
                             here.par = -1
-                            h = Segment(self.micsperpix, pieces=np.array([here]))
+                            h = Segment(self.mpp, pieces=np.array([here]))
                             self.segs.append(h)
                             self.num_segs += 1
                             dict_all[swcent.par] = False
@@ -539,14 +542,18 @@ class SWC(SuperSegment):
 
     def filter(self, function):
         new_segs = filter(function, self)
-        return SWC(segments=new_segs, microns_perpixel=self.micsperpix)
+        return SWC(segments=new_segs, microns_perpixel=self.mpp)
+
+    def write_subset(self, fname, func, headers=True):
+        new_swc = self.filter(func)
+        new_swc.write(fname)
         
 class Segment(object): 
 
     _seg_counter = 0
     
-    def __init__(self, micsperpix, ident=None, pieces=None):
-        self.mpp = micsperpix
+    def __init__(self, mpp, ident=None, pieces=None):
+        self.mpp = mpp
         if pieces is None:
             self._pieces = np.array([])
             self._num_pieces = 0
@@ -566,7 +573,8 @@ class Segment(object):
                 self.ident = self._pieces[0].seg
 
     def __repr__(self):
-        rep = '## segment '+str(self.ident)+' ##\n'
+        # rep = '## segment '+str(self.ident)+' ##\n'
+        rep = ''
         for piece in self._pieces:
             rep += str(piece)
         return rep
@@ -648,6 +656,26 @@ class Segment(object):
         xyzs = self.xyzs
         return np.diff(xyzs, axis=0)
 
+    def _norm_vecs(self, vecs, axis=1):
+        return np.divide(vecs, vecs.sum(axis).reshape(vecs.shape[0], 1))
+
+    @memoize
+    def avg_radius_corrected(self, weighted=True):
+        dxyzs = self._xyz_diffs() # give directionality vectors
+        
+        norm_dxyzs = self._norm_vecs(np.abs(dxyzs))
+        units = np.ones(dxyzs.shape)
+        renorm_dxyzs = self._norm_vecs(units - norm_dxyzs)
+
+        renorm_dxyzs_anis = np.multiply(renorm_dxyzs, self.mpp)
+        midrads = np.convolve(self.rads, np.ones((2)) / 2., mode='valid')
+        midrads = midrads.reshape(midrads.shape[0], 1)
+        rads = np.multiply(renorm_dxyzs_anis, midrads)
+        rads = rads.sum(1)
+        lxyzs = self._piece_lens(dxyzs)
+        avgrad = np.average(rads, axis=0, weights=lxyzs)
+        return avgrad
+
     @memoize
     def avg_radius(self, weighted=False):
         if weighted:
@@ -656,7 +684,7 @@ class Segment(object):
             avgrad = np.average(self.rads[1:], axis=0, weights=lxyzs)
         else:
             avgrad = np.mean(self.rads)
-        return avgrad * self.mpp
+        return avgrad * self.mpp.mean()
             
     @memoize
     def avg_direction(self):
