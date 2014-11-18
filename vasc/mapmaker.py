@@ -61,8 +61,8 @@ def flatten_uval_map(uvmap):
     return newarr
 
 def make_maps(data, probe_dims, rotations, aoe_buffers, perc=None):
-    data_triplets = [(data[i], data[i+1], float(data[i+2])) 
-                     for i in xrange(0, len(data), 3)]
+    data_triplets = [(data[i], data[i+1], float(data[i+2:i+5])) 
+                     for i in xrange(0, len(data), 5)]
     dims = [(probe_dims[i], probe_dims[i+1], probe_dims[i+2]) 
             for i in xrange(0, len(probe_dims), 3)]
     rots = number_to_angles(rotations)
@@ -74,7 +74,7 @@ def make_maps(data, probe_dims, rotations, aoe_buffers, perc=None):
         maps[triplet] = {}
         swc_path, segid_path, mpp = triplet
         probes, y_off, x_off = create_probes(dims, rots, buffs, mpp=mpp)
-        graph = swc.SWC(path=swc_path, microns_perpixel=mpp)
+        graph = swc.SWC(path=swc_path, mpp=mpp)
         if perc is not None:
             radlarge = np.percentile(map(lambda x: x.avg_radius(), graph), 
                                      perc)

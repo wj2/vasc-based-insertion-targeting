@@ -22,10 +22,12 @@ def make_red_alpha_scale_cm():
                                                   redalphadict)
     return redalphascale    
 
-def create_probes(sizes, rotations, buffs, mpp=1.0):
+def create_probes(sizes, rotations, buffs, mpp=None):
     # sizes here includes depth, in the form (depth, length, width), will be 
     # converted to tuple to make hashable
     # rotations are (xy, yz, xz) tuples
+    if mpp is None:
+        mpp = np.ones((1, 3)).reshape(1, 3)
     probes = {}
     y_off, x_off = 0,0
     print sizes
@@ -42,9 +44,11 @@ def create_probes(sizes, rotations, buffs, mpp=1.0):
                 x_off = max(x_off, int(np.ceil(probe.shape[2] / 2.)))
     return probes, y_off, x_off
 
-def create_probe(size, depth, xy=0, yz=0, xz=0, buff=0, mpp=1.0):
-    probe = np.ones((depth+buff, (size[0]+buff)/mpp, 
-                     (size[1]+buff)/mpp+1))
+def create_probe(size, depth, xy=0, yz=0, xz=0, buff=0, mpp=None):
+    if mpp is None:
+        mpp = (1., 1., 1.)
+    probe = np.ones(((depth+buff) / mpp[2], (size[0]+buff)/mpp[1], 
+                     (size[1]+buff)/mpp[0]+1))
     probe[:, :, -1] = 0
     probe = rotate_probe(probe, xy, yz, xz)
     return probe
@@ -69,9 +73,9 @@ class ProbePlacer(object):
         self._ci = ind
         self._maxx = self.stack.shape[2] - 1
         self._maxy = self.stack.shape[1] - 1
-        self.probe = np.ones((probedepth / collapse, 
-                              np.around(probesize[0]/mpp), 
-                              np.around(probesize[1]/mpp + 1)))
+        self.probe = np.ones((probedepth / collapse*mpp[2], 
+                              np.around(probesize[0]/mpp[1]), 
+                              np.around(probesize[1]/mpp[0] + 1)))
         print self.probe[:, :, -1]
         self.probe[:, :, -1] = 0
         self._rotated_probe = self.probe

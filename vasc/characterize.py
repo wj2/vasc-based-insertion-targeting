@@ -4,7 +4,7 @@ import numpy as np
 def do_stats(vessels_hit, binlayer, graph, radlarge=6, hthresh=.785):
     chars = {}
     chars['num_vessels'] = len(vessels_hit)
-    chars['vol_intersected'] = binlayer.sum() * graph.micsperpix
+    chars['vol_intersected'] = binlayer.sum() * np.product(graph.mpp)
     
     segs = map(lambda x: graph.segment_id(x), vessels_hit)
     chars['large_vessels'] = len(filter(lambda x: x.avg_radius() >= radlarge, 
