@@ -363,8 +363,8 @@ class SuperSegment(object):
         return np.concatenate([x.rads for x in self.segs])
     
     @property
-    def micron_rads(self):
-        return np.concatenate([x.micron_rads for x in self.segs])
+    def micron_rads_directionless(self):
+        return np.concatenate([x.micron_rads_directionless for x in self.segs])
 
     @property
     def xyzs(self):
@@ -626,10 +626,10 @@ class Segment(object):
 
     def plot_rads_by(self, attr=None):
         if attr is None:
-            plt.plot(self.micron_rads)
+            plt.plot(self.micron_rads_directionless)
             plt.xlabel('segment number')
         else:
-            plt.plot(getattr(self, attr), self.micron_rads)
+            plt.plot(getattr(self, attr), self.micron_rads_directionless)
             plt.xlabel(attr)
         plt.ylabel('radius')
         plt.show()
@@ -660,7 +660,7 @@ class Segment(object):
         return np.divide(vecs, vecs.sum(axis).reshape(vecs.shape[0], 1))
 
     @memoize
-    def avg_radius_corrected(self, weighted=True):
+    def avg_radius(self, weighted=True):
         dxyzs = self._xyz_diffs() # give directionality vectors
         
         norm_dxyzs = self._norm_vecs(np.abs(dxyzs))
@@ -677,7 +677,7 @@ class Segment(object):
         return avgrad
 
     @memoize
-    def avg_radius(self, weighted=False):
+    def avg_radius_dep(self, weighted=False):
         if weighted:
             dxyzs = self._xyz_diffs()
             lxyzs = self._piece_lens(dxyzs)
@@ -703,13 +703,15 @@ class Segment(object):
     def length(self):
         """ length of segment, calculated going point to point """
         diff_xyzs = self._xyz_diffs()
-        return self._piece_lens(diff_xyzs).sum() * self.mpp
+        anis_diffs = np.multiply(diff_xyzs, self.mpp)
+        return self._piece_lens(anis_diffs).sum()
 
     @memoize
     def crow_length(self):
         """ length of segment as crow flies, from first to last piece """
-        return np.sqrt(np.sum((np.array(self[0].xyz) 
-                               - np.array(self[-1].xyz))**2)) * self.mpp
+        first_last_diff = np.array(self[0].xyz) - np.array(self[-1].xyz)
+        anis_fldiff = self.mpp * first_last_diff
+        return np.sqrt(np.sum(anis_fldiff**2))
     
     @memoize
     def crow_direction(self):
@@ -758,8 +760,8 @@ class Segment(object):
         return self._get_attr_list('rad')
 
     @property
-    def micron_rads(self):
-        return self.rads * self.mpp
+    def micron_rads_directionless(self):
+        return self.rads * self.mpp.mean()
 
     @property
     def xyzs(self):
