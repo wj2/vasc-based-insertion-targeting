@@ -60,9 +60,19 @@ def flatten_uval_map(uvmap):
             newarr[y, x] = vs
     return newarr
 
+def process_triplets(data):
+    data_triplets = []
+    for i in xrange(0, len(data), 5):
+        trip_mpps = tuple((float(x) for x in data[i+2:i+5]))
+        trip = (data[i], data[i+1], trip_mpps)
+        data_triplets.append(trip)
+    return data_triplets
+
 def make_maps(data, probe_dims, rotations, aoe_buffers, perc=None):
-    data_triplets = [(data[i], data[i+1], float(data[i+2:i+5])) 
-                     for i in xrange(0, len(data), 5)]
+    # data_triplets = [(data[i], data[i+1], data[i+2:i+5]) 
+    #                  for i in xrange(0, len(data), 5)]
+    data_triplets = process_triplets(data)
+    print data_triplets
     dims = [(probe_dims[i], probe_dims[i+1], probe_dims[i+2]) 
             for i in xrange(0, len(probe_dims), 3)]
     rots = number_to_angles(rotations)

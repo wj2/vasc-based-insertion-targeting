@@ -9,7 +9,7 @@ from compare import compare_masked_to_source_imgs
 def invert_mask(mask):
     return ~mask.astype(bool)
 
-def crop_mask(mask, bound, im_shape):
+def crop_mask(mask, bound, im_shape, flip=True):
     newmins = (np.around(bound['x'][0]), np.around(bound['y'][0]), 
                np.around(bound['z'][0]))
     print bound
@@ -30,7 +30,8 @@ def crop_mask(mask, bound, im_shape):
                              -newmins[0]:-newmins[0]+im_shape[2]]
     # we notice that the swc2mask function flips the image in the 
     # y-axis, we will correct that here as well
-    cropped_mask = cropped_mask[:,::-1,:]
+    if flip:
+        cropped_mask = cropped_mask[:,::-1,:]
     return cropped_mask
 
 def find_bounds(vascswc=None, vascswcpath=None, cylinder=True):
@@ -72,7 +73,7 @@ def find_bounds(vascswc=None, vascswcpath=None, cylinder=True):
     return bounds
 
 def resize_mask(swc=None, swcpath=None, cylinder=True, mask=None, 
-                maskpath=None, imgpath=None, imshape=None):
+                maskpath=None, imgpath=None, imshape=None, flip=True):
     bounds = find_bounds(swc, swcpath, cylinder)
     if imgpath is None and imshape is None:
         raise IOError('need to be given either imgpath or imshape')
@@ -90,7 +91,7 @@ def resize_mask(swc=None, swcpath=None, cylinder=True, mask=None,
     else:
         if mask is None:
             mask_r = tiff.imread(maskpath)
-        cropped_mask = crop_mask(mask_r, bounds, imshape)
+        cropped_mask = crop_mask(mask_r, bounds, imshape, flip=flip)
         mask_name = None
         if mask is None:
             mask_name = splitext(maskpath)[0] + '-cropped.tif'

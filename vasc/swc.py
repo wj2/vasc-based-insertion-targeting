@@ -1,4 +1,3 @@
-
 import numpy as np
 import itertools
 import random
@@ -529,7 +528,7 @@ class SWC(SuperSegment):
                 atts = (pid, 2, x, y, z, rad, par)
                 ps.append(Piece(atts, True))
             segs.append(Segment(mpp, pieces=ps))
-        return SWC(segments=segs, microns_perpixel=mpp)
+        return SWC(segments=segs, mpp=mpp)
 
     def __getitem__(self, key):
         return self.segs[key]
@@ -542,7 +541,7 @@ class SWC(SuperSegment):
 
     def filter(self, function):
         new_segs = filter(function, self)
-        return SWC(segments=new_segs, microns_perpixel=self.mpp)
+        return SWC(segments=new_segs, mpp=self.mpp)
 
     def write_subset(self, fname, func, headers=True):
         new_swc = self.filter(func)

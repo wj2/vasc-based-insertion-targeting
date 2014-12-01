@@ -10,7 +10,7 @@ import subtractfound
 import swc
 VAA3D = 'vaa3d'
 VAA3D_DIR = '/local1/vaa3d/v3d_external/'
-
+# VAA3D_DIR = '/Users/wjj/Applications/Vaa3d-mkspec/v3d_external/'
 FIJI = '/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx'
 
 """
@@ -70,6 +70,7 @@ def swc_to_mask(swc_path, shape, segid=False):
         f_flag = ['-f','swc2maskBRL']
         v3d_out = eswc_name + '-segidmask.v3draw'
         o_flag = ['-o', v3d_out]
+        flip = False
     else:
         swc_name, swc_ext = os.path.splitext(swc_path)
         i_flag = ['-i', swc_path]
@@ -77,24 +78,27 @@ def swc_to_mask(swc_path, shape, segid=False):
         f_flag = ['-f', 'swc2mask']
         tif_out = swc_name + '-mask.tif'
         o_flag = ['-o', tif_out]
+        flip = True
     retcode = check_call(cmd+x_flag+f_flag+i_flag+o_flag)
     if segid:
         tif_out = v3draw_to_tif16(v3d_out)
     _, tif_out = subtractfound.resize_mask(swcpath=swc_path, maskpath=tif_out, 
-                                            imshape=shape)
+                                           imshape=shape, flip=flip)
     return tif_out
 
-V3DRAW_CONV = 'brl_v3draw_convert.js'
+prefix = os.path.dirname(os.path.realpath(__file__))
+V3DRAW_CONV = prefix + '/brl_v3draw_convert.js'
 def v3draw_to_tif16(imgpath):
     fname, ext = os.path.splitext(imgpath)
     outpath = fname + '.tif'
-    cmd = FIJI+' --headless -macro '+V3DRAW_CONV+' '+imgpath':'+outpath
+    cmd = FIJI+' --headless -macro '+V3DRAW_CONV+' '+imgpath+':'+outpath
     retcode = check_call(cmd.split(' '))
     return outpath
 
-
 SWC2ESWC = ('bin/plugins/neuron_utilities/Enhanced_SWC_Format_Converter/'
             'libeswc_converter.so')
+# SWC2ESWC = ('bin/plugins/neuron_utilities/Enhanced_SWC_Format_Converter/'
+#             'libeswc_converter_debug.dylib')
 def swc_to_eswc(swc_path):
     cmd = [VAA3D]
     x_flag = ['-x', os.path.join(VAA3D_DIR, SWC2ESWC)]
@@ -135,14 +139,17 @@ def gaussian_filter(img_path):
     return tif_out
 
 # input is already gf'd and (maybe) contrast enhanced
-def trace_vasc(img, mpp, gf=False, tmpdir=True):
+def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True):
     base_name = str(time.time())
-    if tmpdir:
-        tmpdir = tf.gettempdir()
-        orig_dir = os.getcwd()
-        os.chdir(tmpdir)
-    img_base_name = base_name+'_base.tif'
-    tiff.imsave(img_base_name, img)
+    # if tmpdir:
+    #     tmpdir = tf.gettempdir()
+    #     orig_dir = os.getcwd()
+    #     os.chdir(tmpdir)
+    if imgpath is None:
+        img_base_name = base_name+'_base.tif'
+        tiff.imsave(img_base_name, img)
+    elif imgpath is not None:
+        img_base_name = imgpath
     imshape = img.shape
     if gf:
         img_base_name = gaussian_filter(img_base_name)
@@ -154,7 +161,7 @@ def trace_vasc(img, mpp, gf=False, tmpdir=True):
     second_swc = radius_fill(second_swc, img_base_name)
     second_swc_mask_segid = swc_to_mask(second_swc, imshape, segid=True)
     
-    finished_swc = swc.SWC(path=second_swc, microns_perpixel=mpp)
+    finished_swc = swc.SWC(path=second_swc, mpp=mpp)
     if tmpdir:
         os.chdir(orig_dir)
     return finished_swc, tiff.imread(second_swc_mask_segid)
