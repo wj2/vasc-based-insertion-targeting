@@ -675,7 +675,7 @@ class Segment(object):
             lxyzs = self._piece_lens(dxyzs)
             avgrad = np.average(rads, axis=0, weights=lxyzs)
         else:
-            avgrad = self.mpp.mean() * self.rads[0]
+            avgrad = np.sqrt(np.sum((self.mpp**2) / 3)) * self.rads[0]
         return avgrad
 
     @memoize
