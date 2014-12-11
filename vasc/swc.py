@@ -660,19 +660,22 @@ class Segment(object):
 
     @memoize
     def avg_radius(self, weighted=True):
-        dxyzs = self._xyz_diffs() # give directionality vectors
+        if self._num_pieces > 1:
+            dxyzs = self._xyz_diffs() # give directionality vectors
         
-        norm_dxyzs = self._norm_vecs(np.abs(dxyzs))
-        units = np.ones(dxyzs.shape)
-        renorm_dxyzs = self._norm_vecs(units - norm_dxyzs)
-
-        renorm_dxyzs_anis = np.multiply(renorm_dxyzs, self.mpp)
-        midrads = np.convolve(self.rads, np.ones((2)) / 2., mode='valid')
-        midrads = midrads.reshape(midrads.shape[0], 1)
-        rads = np.multiply(renorm_dxyzs_anis, midrads)
-        rads = rads.sum(1)
-        lxyzs = self._piece_lens(dxyzs)
-        avgrad = np.average(rads, axis=0, weights=lxyzs)
+            norm_dxyzs = self._norm_vecs(np.abs(dxyzs))
+            units = np.ones(dxyzs.shape)
+            renorm_dxyzs = self._norm_vecs(units - norm_dxyzs)
+            
+            renorm_dxyzs_anis = np.multiply(renorm_dxyzs, self.mpp)
+            midrads = np.convolve(self.rads, np.ones((2)) / 2., mode='valid')
+            midrads = midrads.reshape(midrads.shape[0], 1)
+            rads = np.multiply(renorm_dxyzs_anis, midrads)
+            rads = rads.sum(1)
+            lxyzs = self._piece_lens(dxyzs)
+            avgrad = np.average(rads, axis=0, weights=lxyzs)
+        else:
+            avgrad = self.mpp.mean() * self.rads[0]
         return avgrad
 
     @memoize
