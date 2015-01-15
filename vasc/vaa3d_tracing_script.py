@@ -139,7 +139,8 @@ def gaussian_filter(img_path):
     return tif_out
 
 # input is already gf'd and (maybe) contrast enhanced
-def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True):
+def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True, 
+               retuse=False):
     base_name = str(time.time())
     # if tmpdir:
     #     tmpdir = tf.gettempdir()
@@ -161,8 +162,17 @@ def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True):
     second_swc = radius_fill(second_swc, img_base_name)
     second_swc_mask_segid = swc_to_mask(second_swc, imshape, segid=True)
     
-    finished_swc = swc.SWC(path=second_swc, mpp=mpp)
     if tmpdir:
         os.chdir(orig_dir)
-    return finished_swc, tiff.imread(second_swc_mask_segid)
+    if retuse:
+        finished_swc = swc.SWC(path=second_swc, mpp=mpp)
+        ret = (finished_swc, tiff.imread(second_swc_mask_segid))
+    else:
+        ret = (second_swc, second_swc_mask_segid)
     
+def trace_all(paths):
+    pairs = {}
+    for path in paths:
+        outs = trace_vasc((1, 1, 1), imgpath=path)
+        pairs[path] = outs
+    return pairs
