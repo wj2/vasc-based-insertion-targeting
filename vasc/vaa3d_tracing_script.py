@@ -8,6 +8,7 @@ import os
 from config import VAA3D, VAA3D_DIR
 import subtractfound
 import swc
+import cPickle as p
 VAA3D = 'vaa3d'
 VAA3D_DIR = '/local1/vaa3d/v3d_external/'
 # VAA3D_DIR = '/Users/wjj/Applications/Vaa3d-mkspec/v3d_external/'
@@ -170,9 +171,11 @@ def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True,
     else:
         ret = (second_swc, second_swc_mask_segid)
     
-def trace_all(paths):
+def trace_all(paths, store=None):
     pairs = {}
     for path in paths:
         outs = trace_vasc((1, 1, 1), imgpath=path)
         pairs[path] = outs
+    if store is not None:
+        p.dump(pairs, open(store, 'wb'))
     return pairs
