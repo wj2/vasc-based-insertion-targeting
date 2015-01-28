@@ -82,16 +82,16 @@ def swc_to_mask(swc_path, shape, segid=False):
         flip = True
     retcode = check_call(cmd+x_flag+f_flag+i_flag+o_flag)
     if segid:
-        tif_out = v3draw_to_tif16(v3d_out)
+        tif_out = brl_convert(v3d_out)
     _, tif_out = subtractfound.resize_mask(swcpath=swc_path, maskpath=tif_out, 
                                            imshape=shape, flip=flip)
     return tif_out
 
 prefix = os.path.dirname(os.path.realpath(__file__))
 V3DRAW_CONV = prefix + '/brl_v3draw_convert.js'
-def v3draw_to_tif16(imgpath):
-    fname, ext = os.path.splitext(imgpath)
-    outpath = fname + '.tif'
+def brl_convert(imgpath, ext='.tif'):
+    fname, _ = os.path.splitext(imgpath)
+    outpath = fname + ext
     cmd = FIJI+' --headless -macro '+V3DRAW_CONV+' '+imgpath+':'+outpath
     retcode = check_call(cmd.split(' '))
     return outpath
@@ -141,7 +141,7 @@ def gaussian_filter(img_path):
 
 # input is already gf'd and (maybe) contrast enhanced
 def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True, 
-               retuse=False):
+               retuse=False, invert_bug=False):
     base_name = str(time.time())
     # if tmpdir:
     #     tmpdir = tf.gettempdir()
