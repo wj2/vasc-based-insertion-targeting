@@ -156,6 +156,8 @@ def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True,
         imshape = tiff.imread(imgpath).shape
     if gf:
         img_base_name = gaussian_filter(img_base_name)
+    if invert_bug:
+        img_base_name = brl_convert(img_base_name, ext='.v3draw'))
     first_swc = snake_trace(img_base_name)
     first_swc = radius_fill(first_swc, img_base_name)
     first_swc_mask = swc_to_mask(first_swc, imshape)
