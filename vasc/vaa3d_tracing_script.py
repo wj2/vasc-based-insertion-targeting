@@ -9,10 +9,10 @@ from config import VAA3D, VAA3D_DIR
 import subtractfound
 import swc
 import cPickle as p
-VAA3D = 'vaa3d'
-VAA3D_DIR = '/local1/vaa3d/v3d_external/'
+VAA3D = '/home/danield/williamj/vaa3d/v3d_external/bin/vaa3d'
+VAA3D_DIR = '/home/danield/williamj/vaa3d/v3d_external/'
 # VAA3D_DIR = '/Users/wjj/Applications/Vaa3d-mkspec/v3d_external/'
-FIJI = '/Applications/Fiji.app/Contents/MacOS/ImageJ-macosx'
+FIJI = '/home/danield/williamj/bin/Fiji.app/ImageJ-linux64'
 
 """
 Tracing procedure
@@ -149,10 +149,11 @@ def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True,
     #     os.chdir(tmpdir)
     if imgpath is None:
         img_base_name = base_name+'_base.tif'
+        imshape = img.shape
         tiff.imsave(img_base_name, img)
     elif imgpath is not None:
         img_base_name = imgpath
-    imshape = img.shape
+        imshape = tiff.imread(imgpath).shape
     if gf:
         img_base_name = gaussian_filter(img_base_name)
     first_swc = snake_trace(img_base_name)
@@ -173,9 +174,13 @@ def trace_vasc(mpp, imgpath=None, img=None, gf=False, tmpdir=True,
     
 def trace_all(paths, store=None):
     pairs = {}
+    failed = []
     for path in paths:
-        outs = trace_vasc((1, 1, 1), imgpath=path)
-        pairs[path] = outs
+        try:
+            outs = trace_vasc((1, 1, 1), imgpath=path)
+            pairs[path] = outs
+        except:
+            failed.append(path)
     if store is not None:
         p.dump(pairs, open(store, 'wb'))
-    return pairs
+    return pairs, failed
