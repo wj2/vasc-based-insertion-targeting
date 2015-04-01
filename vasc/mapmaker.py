@@ -153,11 +153,12 @@ def get_minmax(dimdict, buff=0):
     return mmv
             
 
-def make_dimplots(mapdict, anglefunc=np.min, buff=0):
+def make_dimplots(mapdict, anglefunc=np.min, buff=0, name=''):
     mapdict = combine_angles(mapdict, anglefunc)
     for dim in mapdict.keys():
         plot_probesizes(mapdict[dim], buff)
         plt.suptitle(dim)
+    plt.savefig(name+'map.pdf', bbox_inches='tight')
     plt.show()
 
 def plot_probesizes(dimdict, buff=0):
